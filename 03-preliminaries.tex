@@ -1,0 +1,36 @@
+Consider an undirected graph $G(V, E, w)$ with $V$ representing the set of vertices, $E$ the set of edges, and $w_{ij} = w_{ji}$ denoting the weight associated with each edge. In the case of an unweighted graph, we assume unit weight for each edge ($w_{ij} = 1$). Additionally, the neighbors of a vertex $i$ are denoted as $J_i = \{j\ |\ (i, j) \in E\}$, the weighted degree of each vertex as $K_i = \sum_{j \in J_i} w_{ij}$, the total number of vertices as $N = |V|$, the total number of edges as $M = |E|$, and the sum of edge weights in the undirected graph as $m = \sum_{i, j \in V} w_{ij}/2$.
+
+
+
+
+\subsection{Community detection}
+
+Disjoint community detection is the process of identifying a community membership mapping, $C: V \rightarrow \Gamma$, where each vertex $i \in V$ is assigned a community-id $c \in \Gamma$, where $\Gamma$ is the set of community-ids. We denote the vertices of a community $c \in \Gamma$ as $V_c$, and the community that a vertex $i$ belongs to as $C_i$. Further, we denote the neighbors of vertex $i$ belonging to a community $c$ as $J_{i \rightarrow c} = \{j\ |\ j \in J_i\ and\ C_j = c\}$, the sum of those edge weights as $K_{i \rightarrow c} = \sum_{j \in J_{i \rightarrow c}} w_{ij}$, the sum of weights of edges within a community $c$ as $\sigma_c = \sum_{(i, j) \in E\ and\ C_i = C_j = c} w_{ij}$, and the total edge weight of a community $c$ as $\Sigma_c = \sum_{(i, j) \in E\ and\ C_i = c} w_{ij}$ \cite{com-leskovec21}.
+
+
+
+
+\subsection{Modularity}
+
+Modularity serves as a\ignore{fitness} metric for assessing the quality of communities identified by heuristic-based community detection algorithms. It is computed as the difference between the fraction of edges within communities and the expected fraction if edges were randomly distributed, yielding a range of $[-0.5, 1]$ where higher values indicate better results \cite{com-brandes07}.\ignore{The optimization of this metric theoretically leads to the optimal grouping \cite{com-newman04, com-traag11}.} The modularity $Q$ of identified communities is determined using Equation \ref{eq:modularity}, where $\delta$ represents the Kronecker delta function ($\delta (x,y)=1$ if $x=y$, $0$ otherwise). The \textit{delta modularity} of moving a vertex $i$ from community $d$ to community $c$, denoted as $\Delta Q_{i: d \rightarrow c}$, can be computed using Equation \ref{eq:delta-modularity}.
+
+\begin{equation}
+\label{eq:modularity}
+  Q
+  = \frac{1}{2m} \sum_{(i, j) \in E} \left[w_{ij} - \frac{K_i K_j}{2m}\right] \delta(C_i, C_j)
+  = \sum_{c \in \Gamma} \left[\frac{\sigma_c}{2m} - \left(\frac{\Sigma_c}{2m}\right)^2\right]
+\end{equation}
+
+\begin{equation}
+\label{eq:delta-modularity}
+  \Delta Q_{i: d \rightarrow c}
+  = \frac{1}{m} (K_{i \rightarrow c} - K_{i \rightarrow d}) - \frac{K_i}{2m^2} (K_i + \Sigma_c - \Sigma_d)
+\end{equation}
+
+
+
+
+\subsection{Louvain algorithm}
+\label{sec:about-louvain}
+
+The Louvain method \cite{com-blondel08} is a modularity optimization based agglomerative algorithm for identifying high quality disjoint communities in large networks. It has a time complexity of $O (L |E|)$ (with $L$ being the total number of iterations performed), and a space complexity of $O(|V| + |E|)$ \cite{com-lancichinetti09}. The algorithm consists of two phases: the \textit{local-moving phase}, where each vertex $i$ greedily decides to move to the community of one of its neighbors $j \in J_i$ that gives the greatest increase in modularity $\Delta Q_{i:C_i \rightarrow C_j}$ (using Equation \ref{eq:delta-modularity}), and the \textit{aggregation phase}, where all the vertices in a community are collapsed into a single super-vertex. These two phases make up one pass, which repeats until there is no further increase in modularity \cite{com-blondel08, com-leskovec21}. We observe that Louvain obtains high-quality communities, with $3.0 - 30\%$ higher modularity than that obtained by LPA, but requires $2.3 - 14\times$ longer to converge.
