@@ -1,0 +1,14 @@
+\begin{table}
+\setlength{\tabcolsep}{1pt}
+\centering
+\begin{tabular}{|l|l|l|l|} 
+\hline
+Algorithm & \multicolumn{3}{|c|}{Dynamic Frontier} \\
+\cline{2-4}
+ & + \Lou{} & + LPA & + Hybrid \\ \hline
+Speedup & $7.3\times$ & $6.7\times$ & $14.6\times$ \\ \hline
+Modularity & $0.90$ & $0.78$ & $0.90$ \\ \hline
+\end{tabular}
+\caption{Average speedup compared to a parallel $\Delta$-screening algorithm \cite{com-zarayeneh21}, and the average modularity score achieved by our algorithms on a batch updates ranging from $10^{-7}$ to $0.01$ times the number of edges in the original graph.}
+\label{tab:results}
+\end{table}

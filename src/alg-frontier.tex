@@ -20,17 +20,17 @@
     \If{$C^{t-1}[i] \neq C^{t-1}[j]$} $\delta V[i] \gets 1$
     \EndIf
   \EndFor \label{alg:frontier--mark-end}
-  \State \BeginHighlight{} $\rhd$ Called to check if a given vertex is affected \label{alg:frontier--affected-begin}
+  % \State \BeginHighlight{} $\rhd$ Called to check if a given vertex is affected \label{alg:frontier--affected-begin}
   \Function{isAffected}{$i$}
     \Return{$\delta V[i]$}
   \EndFunction \label{alg:frontier--affected-end}
-  \EndHighlight{blue}{0.95}
-  \State \BeginHighlight{} $\rhd$ Called when a vertex changes its community \label{alg:frontier--remark-begin}
+  % \EndHighlight{blue}{0.95}
+  % \State \BeginHighlight{} $\rhd$ Called when a vertex changes its community \label{alg:frontier--remark-begin}
   \Function{onChange}{$i$}
     \ForAll{$j \in G^t.out(i)$} $\delta V[j] \gets 1$ \Comment{Expand affected}
     \EndFor
   \EndFunction \label{alg:frontier--remark-end}
-  \EndHighlight{red}{0.95}
+  % \EndHighlight{red}{0.95}
   \State $\rhd$ Find with $louvain()$, $lpa()$, or $hybridLouvainLpa()$ \label{alg:frontier--communities-begin}
   \Return{$communities(G^t, C^{t-1}, \{isAffected, onChange\})$} \label{alg:frontier--communities-end}
 \EndFunction
@@ -45,3 +45,60 @@
 % TOLERANCE\_INITIAL = 0.01
 % TOLERANCE\_DECLINE = 10
 % MAX\_PASSES = 500
+
+
+
+
+
+
+\ignore{
+\begin{algorithm}[hbtp]
+\caption{\textit{Dynamic Frontier} approach (\Fro{}).}
+\label{alg:frontier}
+\begin{algorithmic}[1]
+
+\Statex
+
+\State $\rhd$ {\bf Step 1}: Initial marking of affected vertices
+\Function{\Fro{}-initial}{$G^t, \Delta^{t-}, \Delta^{t+}, C^{t-1}$} \label{alg:frontier--main-begin}
+  \ForAll{$(i, j) \in \Delta^{t-}$ \textbf{in parallel}} \label{alg:frontier--mark-begin}
+    \State Mark $i$ as affected \textbf{if} $C^{t-1}[i] = C^{t-1}[j]$
+  \EndFor
+  \ForAll{$(i, j, w) \in \Delta^{t+}$ \textbf{in parallel}}
+    \State Mark $i$ as affected \textbf{if} $C^{t-1}[i] \neq C^{t-1}[j]$
+  \EndFor \label{alg:frontier--mark-end}
+\EndFunction
+
+\Statex
+  
+\State $\rhd$ {\bf Step 2}: Incremental marking of affected vertices
+\Function{\Fro{}-incremental}{$G^t$}
+  \While{iterations are not complete}
+    \ForAll{$i \in V^t$}
+      \If{$i$ is not affected} \textbf{continue}
+      \EndIf
+      \State Mark $i$ as not affected (prune) \label{alg:frontier--prune}
+      \State Pick best community for $i$
+      \If{community of $i$ changes}
+        \State Mark neighbors of $i$ as affected \label{alg:frontier--remark}
+      \EndIf
+    \EndFor
+    \State \textbf{repeat until} communities have converged
+  \EndWhile
+\EndFunction \label{alg:frontier--main-end}
+
+\Statex
+
+\State $\rhd$ {\bf Step 3}: Algorithm-specific post-processing (optional)
+\end{algorithmic}
+\end{algorithm}
+
+
+
+
+%% Parameter setting
+% TOLERANCE = 0.05
+% MAX\_ITERATIONS = 20
+% MAX\_THREADS = 12
+
+}

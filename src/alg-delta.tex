@@ -50,3 +50,52 @@
 \EndFunction
 \end{algorithmic}
 \end{algorithm}
+
+
+
+
+
+\ignore{
+\begin{algorithm}[hbtp]
+\caption{Parallel \textit{$\Delta$-screening} approach.}
+\label{alg:deltascreening}
+\begin{algorithmic}
+\Ensure{$\delta E, \delta C$: Are neighbors, or community affected?}
+\Ensure{$H$: Hashtable mapping a community to associated weight}
+
+\Statex
+
+\Function{P-DS}{$G^t, \Delta^{t-}, \Delta^{t+}, C^{t-1}$}
+  \State $H, \delta E, \delta C \gets \{\}$
+  \ForAll{$[i, j] \in \Delta^{t-}$ \textbf{in parallel}}
+    \If{$C^{t-1}[i] = C^{t-1}[j]$}
+      \State $\delta E[i], \delta C[C^{t-1}[j]] \gets true$
+      \State Mark $i$ as affected
+    \EndIf
+  \EndFor
+  \ForAll{unique source vertex $i \in \Delta^{t+}$ \textbf{in parallel}}
+    \State $H \gets \{\}$
+    \ForAll{$(i', j, w) \in \Delta^{t+}\ |\ i' = i$}
+      \If{$C^{t-1}[i] \neq C^{t-1}[j]$}
+        \State $H[C^{t-1}[j]] \gets H[C^{t-1}[j]] + w$
+      \EndIf
+    \EndFor
+    \State $[c^*, w^*] \gets chooseCommunity(H)$
+    \State $\delta E[i], \delta C[c^*] \gets true$
+    \State Mark $i$ as affected
+  \EndFor
+  \ForAll{$i \in V^t$ \textbf{in parallel}}
+    \If{$\delta E[i]$}
+      \ForAll{$j \in G^t.neighbors(i)$}
+        \State Mark $i$ as affected
+      \EndFor
+    \EndIf
+    \If{$\delta C[C^{t-1}[i]]$}
+      \State Mark $i$ as affected
+    \EndIf
+  \EndFor
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+
+}
