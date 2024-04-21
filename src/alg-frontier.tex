@@ -1,0 +1,47 @@
+\begin{algorithm}[hbtp]
+\caption{\textit{Dynamic Frontier} community detection approach.}
+\label{alg:frontier}
+\begin{algorithmic}[1]
+\Ensure{$\delta V[i]$: Is vertex $i$ affected due to current batch update?}
+\Ensure{$communities$: Community detection algorithm to use.}
+
+\Statex
+
+\Function{dynamicFrontier}{$G^{t-1}, C^{t-1}, \Delta^{t-}, \Delta^{t+}$}
+  \State $G^t \gets (G^{t-1} \setminus \Delta^{t-}) \cup \Delta^{t+}$
+  \ForAll{$i \in V^{t-1} \cup V^t$} $\delta V[i] \gets 0$
+  \EndFor
+  \State $\rhd$ Mark initial affected vertices \label{alg:frontier--mark-begin}
+  \ForAll{$(i, j) \in \Delta^{t-}$ \textbf{in parallel}}
+    \If{$C^{t-1}[i] = C^{t-1}[j]$} $\delta V[i] \gets 1$
+    \EndIf
+  \EndFor
+  \ForAll{$(i, j, w) \in \Delta^{t+}$ \textbf{in parallel}}
+    \If{$C^{t-1}[i] \neq C^{t-1}[j]$} $\delta V[i] \gets 1$
+    \EndIf
+  \EndFor \label{alg:frontier--mark-end}
+  \State \BeginHighlight{} $\rhd$ Called to check if a given vertex is affected \label{alg:frontier--affected-begin}
+  \Function{isAffected}{$i$}
+    \Return{$\delta V[i]$}
+  \EndFunction \label{alg:frontier--affected-end}
+  \EndHighlight{blue}{0.95}
+  \State \BeginHighlight{} $\rhd$ Called when a vertex changes its community \label{alg:frontier--remark-begin}
+  \Function{onChange}{$i$}
+    \ForAll{$j \in G^t.out(i)$} $\delta V[j] \gets 1$ \Comment{Expand affected}
+    \EndFor
+  \EndFunction \label{alg:frontier--remark-end}
+  \EndHighlight{red}{0.95}
+  \State $\rhd$ Find with $louvain()$, $lpa()$, or $hybridLouvainLpa()$ \label{alg:frontier--communities-begin}
+  \Return{$communities(G^t, C^{t-1}, \{isAffected, onChange\})$} \label{alg:frontier--communities-end}
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+
+
+
+
+%% Parameter setting
+% $\tau \gets TOLERANCE\_INITIAL$
+% TOLERANCE\_INITIAL = 0.01
+% TOLERANCE\_DECLINE = 10
+% MAX\_PASSES = 500

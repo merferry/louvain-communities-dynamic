@@ -1,0 +1,17 @@
+\begin{algorithm}[hbtp]
+\caption{\textit{Naive-dynamic} community detection approach.}
+\label{alg:naive}
+\begin{algorithmic}
+\Ensure{$communities$: Community detection algorithm to use.}
+
+\Statex
+
+\Function{naiveDynamic}{$G^{t-1}, C^{t-1}, \Delta^{t-}, \Delta^{t+}$}
+  \State $G^t \gets G^{t-1} \setminus \Delta^{t-} \cup \Delta^{t+}$
+  \Function{isAffected}{$i$}
+    \Return{$true$}
+  \EndFunction
+  \Return{$communities(G^t, C^{t-1}, \{isAffected\})$}
+\EndFunction
+\end{algorithmic}
+\end{algorithm}

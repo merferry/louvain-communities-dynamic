@@ -1,99 +1,103 @@
-\subsection{Optimizations for Louvain algorithm}
-\label{sec:louvain}
+\subsection{Our Dynamic Frontier approach (\Fro{})}
+\label{sec:frontier}
 
-We use a parallel implementation of the Louvain method to determine suitable parameter settings and optimize the original algorithm through experimentation with a variety of techniques. We use \textit{asynchronous} version of Louvain, where threads work independently on different parts of the graph. This allows for faster convergence but can also lead to more variability in the final result \cite{com-blondel08, com-halappanavar17}. Further, we allocate a separate hashtable per thread to keep track of the delta-modularity of moving to each community linked to a vertex in the local-moving phase of the algorithm, and to keep track of the total edge weight from one super-vertex to the other super-vertices in the aggregation phase of the algorithm.
+\input{src/fig-dynamic-approaches}
+\input{src/fig-frontier-example}
 
-Our optimizations include using OpenMP's \verb|dynamic| loop schedule, limiting the number of iterations per pass to $20$, using a tolerance drop rate of $10$, setting an initial tolerance of $0.01$, using an aggregation tolerance of $0.8$, employing vertex pruning, making use of parallel prefix sum and preallocated Compressed Sparse Row (CSR) data structures for finding community vertices and for storing the super-vertex graph during the aggregation phase, and using fast collision-free per-thread hashtables which are well separated in their memory addresses (\textit{Far-KV}) for the local-moving and aggregation phases of the algorithm. Details on each of the optimizations is given below.
-
-For each optimization, we test a number of relevant alternatives, and show the relative time and the relative modularity of communities obtained by each alternative in Figure \ref{fig:louvain-opt}. This result is obtained by running the tests on each graph in the dataset (see Table \ref{tab:dataset}), $5$ times on each graph to reduce the impact of noise, taking their geometric mean and arithmetic mean for the runtime and modularity respectively, and representing them as a ratio within each optimization category.
-
-
-\subsubsection{Adjusting OpenMP loop schedule}
-
-We attempt \textit{static}, \textit{dynamic}, \textit{guided}, and \textit{auto} loop scheduling approaches of OpenMP (each with a chunk size of $2048$) to parallelize the local-moving and aggregation phases of the Louvain algorithm. Results indicate that the scheduling behavior can have small impact on the quality of obtained communities. We consider OpenMP's \verb|dynamic| loop schedule to be the best choice, as it helps achieve better load balancing when the degree distribution of vertices is non-uniform, and offers a $7\%$ reduction in runtime with respect to OpenMP's \textit{auto} loop schedule, with only a $0.4\%$ reduction in the modularity of communities obtained (which is likely to be just noise).
-
-\subsubsection{Limiting the number of iterations per pass}
-
-Restricting the number of iterations of the local-moving phase ensures its termination within a reasonable number of iterations, which helps minimize runtime. This can be important since the local-moving phase performed in the first pass is the most expensive step of the algorithm. However, choosing too small a limit may worsen convergence rate. Our results indicate that limiting the maximum number of iterations to $20$ allows for $13\%$ faster convergence, when compared to a maximum iterations of $100$.
+Given a batch update on the original graph, it is likely that only a small subset of vertices in the graph would change their community membership. Selection of the appropriate set of affected vertices to be processed (that are likely to change their community), in addition to the overhead of finding them, plays a significant role in the overall accuracy and efficiency of a dynamic batch parallel algorithm. Too small a subset may result in poor-quality communities, while a too-large subset will increase computation time. However, \Nai{} processes all the vertices, while \Del{} generally overestimates the set of affected vertices and has a high overhead. Our proposed \textit{Dynamic Frontier} approach (which we from here on refer to as \Fro{}) addresses these issues.
 
 
-\subsubsection{Adjusting tolerance drop rate (threshold scaling)}
+\subsubsection{Explanation of the approach}
 
-Tolerance is used to detect convergence in the local-moving phase of the Louvain algorithm, i.e., when the total delta-modularity in a given iteration is below or equal to the specified tolerance, the local-moving phase is considered to have converged. Instead of using a fixed tolerance across all passes of the Louvain algorithm, we can start with an initial high tolerance and then gradually reduce it. This is known as threshold scaling \cite{com-lu15, com-naim17, com-halappanavar17}, and it helps minimize runtime as the first pass of the algorithm (which is usually the most expensive). Based on our findings, a tolerance drop rate of $10$ yields $4\%$ faster convergence, with respect to a tolerance drop rate of $1$ (threshold scaling disabled), with no reduction in quality of communities obtained.
+We now explain \Fro{}. Consider a batch update consisting of edge deletions $(i, j) \in \Delta^{t-}$ and insertions $(i, j, w) \in \Delta^{t+}$, shown with double-dashed lines and double-solid lines respectively, with respect to a single source vertex $i$, in Figure \ref{fig:dynamic-approaches}. At the start of the community detection algorithm, we initialize the community membership of each vertex to that obtained in the previous snapshot of the graph.
 
+\paragraph{Initial marking of affected vertices on edge deletion/insertion}
 
-\subsubsection{Adjusting initial tolerance}
+For edge deletions between vertices belonging to the same community and edge insertions between vertices belonging to different communities, we mark the source vertex $i$ as affected, as shown with vertices highlighted in yellow, in Figure \ref{fig:dynamic-approaches}. Note that batch updates are undirected, so we effectively mark both the endpoints $i$ and $j$. Edge deletions between vertices lying across communities and edge insertions for vertices lying within the same community are ignored (for reasons stated before).
 
-Starting with a smaller initial tolerance allows the algorithm to explore broader possibilities for community assignments in the early stage, but comes at the cost of increased runtime. We find an initial tolerance of $0.01$ provides a $14\%$ reduction in runtime of the algorithm with no reduction in the quality of identified communities, when compared to an initial tolerance of $10^{-6}$.
+\paragraph{Incremental marking of affected vertices on vertex migration to another community}
 
+When a vertex $i$ changes its community during the community detection algorithm (shown with an arrow, with the direction indicating the migration of source vertex $i$ from its previous community to another new community), we mark all its neighbor vertices $j \in J_i$ as affected, as shown if Figure \ref{fig:dynamic-approaches} (highlighted in yellow), and mark $i$ as not affected. To minimize unnecessary computation, we also mark an affected vertex $i$ as not affected even if  $i$ does not change its community. We call this as the vertex pruning optimization. The process is akin to a graph traversal and continues until the communities have converged.
 
-\subsubsection{Adjusting aggregation tolerance}
+\paragraph{Application to the first pass of Louvain algorithm}
 
-The aggregation tolerance determines the point at which communities are considered to have converged based on the number of community merges. In other words, if too few communities merged this pass we should stop here, i.e., if $|V_{aggregated}|/|V| \geq$ aggregation tolerance, we consider the algorithm to have converged. Adjusting aggregation tolerance allows the algorithm to stop earlier when further merges have minimal impact on the final result. According to our observations, an aggregation tolerance of $0.8$ appears to be the best choice, as it presents a $14\%$ reduction in runtime, when compared to the aggregation tolerance being disabled ($1$), while identifying final communities of equivalent quality.
-
-
-\subsubsection{Vertex pruning}
-
-Vertex pruning is a technique that is used to minimize unnecessary computation. Here, when a vertex changes its community, its marks its neighbors to be processed. Once a vertex has been processed, it is marked as not to be processed. However, it comes with an added overhead of marking an unmarking of vertices. Based on our results, vertex pruning justifies this overhead, and should be enabled for $11\%$ improvement in performance. An illustration of vertex pruning optimization is shown in Figure \ref{fig:louvain-pruning}.
-
-\input{src/fig-louvain-pruning}
+We apply \Fro{} to the first pass of \Lou{} algorithm (see Line \ref{alg:louvain--remark-pass} in Algorithm \ref{alg:louvain}), as with \Del{}. In subsequent passes, if the aggregation tolerance condition is not met (Line \ref{alg:louvain--aggregation-tolerance} in Algorithm \ref{alg:louvain}), all super-vertices are marked as affected and processed according to Louvain. This takes less than $14\%$ of total time, so we don't use \Fro{} to find affected super-vertices. The tolerance condition only fails in the case of large batch updates.
 
 
-\subsubsection{Finding community vertices for aggregation phase}
+\subsubsection{A simple example}
 
-In the aggregation phase of the Louvain algorithm, the communities obtained in the previous local-moving phase of the algorithm are combined into super-vertices in the aggregated graph, with the edges between two super-vertices being equal to the total weight of edges between the respective communities. This requires one to obtain the list of vertices belonging to each community, instead of the mapping of community membership of each vertex that we have after the local-moving phase ends. A straight-forward implementation of this would make use of two-dimensional arrays for storing vertices belonging to each community, with the index in the first dimension representing the community id $c$, and the index in the second dimension pointing to the $n^{th}$ vertex in the given community $c$. However, this requires memory allocation during the algorithm, which is expensive. Employing a parallel prefix sum technique along with a preallocated Compressed Sparse Row (CSR) data structure eliminates repeated memory allocation and deallocation, enhancing performance. Indeed, out findings indicate that using parallel prefix sum along with a preallocated CSR is $2.2\times$ faster than using 2D arrays for aggregating vertices.
+Figure \ref{fig:frontier-example} shows an example of \Fro{}.
 
+\paragraph{Initial communities}
 
-\subsubsection{Storing aggregated communities (super-vertex graph)}
+The original graph comprises a total of $16$ vertices, which are divided into three communities, distinguished by the border colors of \textit{red}, \textit{green}, and \textit{blue} (see Figure \ref{fig:frontier-example-01}). This community membership information of each vertex could have been obtained by executing either the static or dynamic version of the \Lou{}/\LPA{} algorithm.
 
-After the list of vertices belonging to each community have been obtained, the communities need to be aggregated (or compressed) into super-vertices, such that edges between two super-vertices being equal to the total weight of edges between the respective communities. This is generally called the super-vertex graph, or the compressed graph. It is then used as an input to the local-moving phase of the next pass of the Louvain algorithm. A simple data structure to store the super-vertex graph in the adjacency list format would be a two-dimensional array. Again, this requires memory allocation during the algorithm, which is bad for performance. Utilizing two preallocated CSRs, one for the source graph and the other for the target graph (except the first pass, where the dynamic graph may be stored in any desired format suitable for dynamic batch updates), along with parallel prefix sum can help here. We observe that using parallel prefix sum along with preallocated CSRs for maintaining the super-vertex graph is again $2.2\times$ faster than using 2D arrays.
+\paragraph{Batch update and Marking affected (initial)}
 
+Subsequently a batch update is applied to the original graph (see Figure \ref{fig:frontier-example-03}), involving the deletion of an edge between vertices $1$ and $2$, and the insertion of an edge between vertices $4$ and $12$. Following the batch update, we perform the initial step of \Fro{}, marking endpoints $1$, $2$, $4$, and $12$ as affected. At this point, we are ready to execute the first iteration of a community detection algorithm.
 
-\subsubsection{Hashtable design for local-moving/aggregation phases}
+\paragraph{After first iteration}
 
-One can use C++'s inbuilt maps as per-thread (independent) hashtables for the Louvain algorithm. But this has poor performance. So we use a key-list and a full-size values array (collision-free) to dramatically improve performance. However, if the memory addresses of the hashtables are nearby (\textit{Close-KV}), even if each thread uses its own hashtable exclusively, performance is not as high. This is possibly due to false cache-sharing. Alternatively, if we ensure that the memory address of each hashtable are farther away (\textit{Far-KV}), the performance improves. Our results indicate that \textit{Far-KV} has the best performance and is $4.4\times$ faster than \textit{Map}, and $1.3\times$ faster than \textit{Close-KV} hashtable implementations. An illustration of \textit{Far-KV} hashtable is shown in Figure \ref{fig:louvain-hashtable}.
+During the first iteration (see Figure \ref{fig:frontier-example-04}), the community membership of vertex $2$ changes from \textit{red} to \textit{green} because it exhibits stronger connections with vertices in the \textit{green} community. In response to this change, the \Fro{} incrementally marks the neighboring vertices of $2$ as affected, specifically vertices $8$ and $10$. Vertex $2$ is no longer marked as affected due to pruning.
 
-\input{src/fig-louvain-hashtable}
-\input{src/fig-louvain-opt}
+\paragraph{After second iteration}
 
+Let us now consider the second iteration (see Figure \ref{fig:frontier-example-05}). Vertex $4$ is now more strongly connected to the \textit{blue} community, resulting in a change of its community membership from \textit{red} to \textit{blue}. As before, we mark the neighbors of vertex $4$ as affected, namely vertices $12$, $14$, and $15$. Vertex $4$, once again, no longer marked as affected due to vertex pruning.
 
+\paragraph{Communities converged}
 
-
-\subsection{Our optimized Louvain implementation}
-
-We now explain the implementation of GVE-Louvain in Algorithms \ref{alg:louvain}, \ref{alg:louvainlm}, and \ref{alg:louvainag}. A flow diagram illustrating the first pass of GVE-Louvain is shown in Figure \ref{fig:louvain-pass}.
-
-
-\subsubsection{Main step of GVE-Louvain}
-
-The main step of GVE-Louvain (\texttt{louvian()} function) is outlined in Algorithm \ref{alg:louvain}. It encompasses initialization, the local-moving phase, and the aggregation phase. Here, the \texttt{louvain()} function takes the input graph $G$, and returns the community membership $C$ for each vertex. In line \ref{alg:louvain--initialization}, we first initialize the community membership $C$ of each vertex in $G$, and perform passes of the Louvain algorithm, limited to $MAX\_PASSES$ (lines \ref{alg:louvain--passes-begin}-\ref{alg:louvain--passes-end}). In each pass, we initialize the total edge weight of each vertex $K'$, the total edge weight of each community $\Sigma'$, and the community membership $C'$ of each vertex in the current graph $G'$ (line \ref{alg:louvain--reset-weights}); and mark all vertices as unprocessed (line \ref{alg:louvain--reset-affected}).
-
-Next, in line \ref{alg:louvain--local-move}, we perform the local-moving phase by calling \texttt{louvainMove()} (Algorithm $\ref{alg:louvainlm}$), which optimizes community assignments. If the local-moving phase converged in a single iteration, global convergence is implied and we terminate the passes (line \ref{alg:louvain--globally-converged}). Further, if the drop is community count $|\Gamma|$ is too small, we have reached the point of diminishing returns, and thus stop at the current pass (line \ref{alg:louvain--aggregation-tolerance}).
-
-In case convergence has not been achieved, we renumber communities (line \ref{alg:louvain--renumber}), update top-level community memberships $C$ with dendrogram lookup (line \ref{alg:louvain--lookup}), perform the aggregation phase by calling \texttt{louvainAggregate()} (Algorithm \ref{alg:louvainag}), and scale the convergence threshold for subsequent passes, i.e., perform threshold scaling (line \ref{alg:louvain--threshold-scaling}). The next pass continues in line \ref{alg:louvain--passes-begin}. At the end of all passes, we perform a final update of the top-level community memberships $C$ with dendrogram lookup (line \ref{alg:louvain--lookup-last}), and return the top-level community membership $C$ of each vertex in $G$.
+In the subsequent iteration (see Figure \ref{fig:frontier-example-06}), no other vertices have a strong enough reason to change their community membership. At this point, when employing \Lou{}, the aggregation phase commences consolidating communities into super-vertices to prepare for the subsequent pass of the algorithm. However, when employing the \LPA{}, this marks the conclusion of the algorithm.
 
 \input{src/alg-louvain}
-\input{src/alg-louvainlm}
-\input{src/alg-louvainag}
+\input{src/alg-rak}
+\input{src/alg-hybrid}
 
 
-\subsubsection{Local-moving phase of GVE-Louvain}
-
-The pseuodocode for the local-moving phase of GVE-Louvain is presented in Algorithm \ref{alg:louvainlm}, which iteratively moves vertices between communities to maximize modularity. Here, the \texttt{louvainMove()} function takes the current graph $G'$, community membership $C'$, total edge weight of each vertex $K'$, and total edge weight of each community $\Sigma'$ as input, and returns the number of iterations performed $l_i$.
-
-Lines \ref{alg:louvainlm--iterations-begin}-\ref{alg:louvainlm--iterations-end} represent the main loop of the local-moving phase. In line \ref{alg:louvainlm--init-deltaq}, we first initialize the total delta-modularity per iteration $\Delta Q$. Next, in lines \ref{alg:louvainlm--loop-vertices-end}-\ref{alg:louvainlm--loop-vertices-end}, we iterate over unprocessed vertices in parallel. For each vertex $i$, we mark $i$ as processed - vertex pruning (line \ref{alg:louvainlm--prune}), scan communities connected to $i$ - excluding self (line \ref{alg:louvainlm--scan}), determine the best community $c*$ to move $i$ to (line \ref{alg:louvainlm--best-community-begin}), calculate the delta-modularity of moving $i$ to $c*$ (line \ref{alg:louvainlm--best-community-end}), and update the community membership  (lines \ref{alg:louvainlm--perform-move-begin}-\ref{alg:louvainlm--perform-move-end}) of $i$, and mark its neighbors as unprocessed (line \ref{alg:louvainlm--remark}) if a better community was found. In line \ref{alg:louvainlm--locally-converged}, we check if the local-moving phase has converged (locally). If so, we break out of the loop (or if $MAX\_ITERATIONS$ is reached). At the end, in line \ref{alg:louvainlm--return}, we return the number of iterations performed $l_i$.
 
 
-\subsubsection{Aggregation phase of GVE-Louvain}
+\subsection{Our Dynamic Frontier based Louvain (\FroLou{}, Algorithm \ref{alg:louvain})}
+\label{sec:dynamic-louvain}
 
-Finally, the psuedocode for the aggregation phase is shown in Algorithm \ref{alg:louvainag}, which aggregates communities into super-vertices. Here, the \texttt{louvainAggrega} \texttt{te()} function takes the current graph $G'$ and the community membership $C'$ as input, and returns the super-vertex graph $G''$.
+We show how to apply our \textit{Dynamic Frontier} approach (\Fro{}) to \Lou{} in Algorithm \ref{alg:louvain} (which we call \FroLou{}). We take as input the previous snapshot of the graph $G^{t-1}$, the previous community membership of each vertex $C^{t-1}$, and the batch update consisting of edge deletions $\Delta^{t-}$ and insertions $\Delta^{t+}$ in Line \ref{alg:louvain--main-begin}. First, in Lines \ref{alg:louvain--restart-begin}-\ref{alg:louvain--restart-end}, we check if we should use \StaLou{} to maintain the quality of communities (explained in Section \ref{sec:restart}). Then, in Lines \ref{alg:louvain--mark-begin}-\ref{alg:louvain--mark-end}, based on \Fro{}, we mark the initial set of vertices as affected. In Lines \ref{alg:louvain--membership} and \ref{alg:louvain--super-membership-begin}-\ref{alg:louvain--super-membership-end}, we initialize the community membership of each vertex in the graph $G^t$, and each super-vertex in the aggregated graph $G'$ (in the first pass, this is the same as the input graph $G^t$).
 
-In lines \ref{alg:louvainag--coff-begin}-\ref{alg:louvainag--coff-end}, the offsets array for the community vertices CSR $G'_{C'}.offsets$ is obtained by first counting the number of vertices belonging to each community using \texttt{countCommunity} \texttt{Vertices()}, and then performing exclusive scan on the array. In lines \ref{alg:louvainag--comv-begin}-\ref{alg:louvainag--comv-end}, we iterate over all vertices in parallel and atomically populate vertices belonging to each community into the community graph CSR $G'_{C'}$. Next, we obtain the offsets array for the super-vertex graph CSR by over-estimating the degree of each super-vertex, i.e., by obtaining the total degree of each community with \texttt{communityTotalDegree()}, and then performing exclusive scan on the array (lines \ref{alg:louvainag--yoff-begin}-\ref{alg:louvainag--yoff-end}). This causes the super-vertex graph CSR to be holey, i.e., with gaps in between the edges and weights array of each super-vertex in the CSR. Then, in lines \ref{alg:louvainag--y-begin}-\ref{alg:louvainag--y-end}, we iterate over all communities $c \in [0, |\Gamma|)$ in parallel, and add all communities $d$ (with associated edge weight $w$) linked to each vertex $i$ belonging to community $c$ (with \texttt{scanCommunities()} defined in Algorithm \ref{alg:louvainlm}) to the per-thread hashtable $H_t$. Once $H_t$ is populated with all communities (and associated weights) linked to community $c$, we add them as edges to super-vertex $c$ into the super-vertex graph $G''$ atomically. At the end, in line \ref{alg:louvainag--return}, we return the super-vertex graph $G''$.
+For each pass (Lines \ref{alg:louvain--passes-begin}-\ref{alg:louvain--passes-end}), we perform the \textit{local-moving} phase of \Lou{} in Line \ref{alg:louvain--local-move}. If the community labels converge after one iteration, we terminate the algorithm (Line \ref{alg:louvain--globally-converged}). In Line \ref{alg:louvain--renumber}, we renumber the community-ids. This renumbering helps generate the aggregated graph $G'$ in the Compressed Sparse Row (CSR) format and counting the number of communities. In Line \ref{alg:louvain--lookup}, we update the community membership of each vertex $C$ based on the community membership of each super-vertex, such that we refer to the top-level hierarchy of the dendrogram as the final result.
 
-\ignore{The main Louvain algorithm, given in Algorithm \ref{alg:louvain} first initializes the community membership of each vertex. It then iteratively performs the local-moving phase until convergence. In each pass, it resets the edge weights, marks vertices as unprocessed, and performs the local-moving phase. If the algorithm globally converges or the communities' shrinkage is below a specified tolerance, it breaks the loop. Otherwise, it renumbers the communities, updates the graph, and adjusts the convergence threshold. The main algorithm returns the final community membership of each vertex.}
+Next, at Line \ref{alg:louvain--aggregation-tolerance}, we check whether only a small portion of communities have merged together. To do this, we calculate the ratio of the number of communities after the \textit{local-moving} phase $|\Gamma|$ to the original number of communities $|\Gamma_{old}|$. If this ratio $|\Gamma|/|\Gamma_{old}|$ is less than a specific value called the aggregation tolerance ($\tau_{agg}$, whose optimal value is measured and mentioned in Section \ref{sec:louvain}), it means that the merging has been minimal. In such a situation, we stop the algorithm to avoid the computationally expensive \textit{aggregation} phase, as it doesn't provide significant benefits. However, if a sufficiently large number of communities have merged together, we proceed with the \textit{aggregation} phase and obtain the aggregated graph $G'$. This graph is stored in CSR format.
 
-\ignore{The local-moving phase is responsible for iteratively moving vertices between communities to maximize modularity. It uses a per-thread hashtable to keep track of the communities and their weights. The algorithm iterates over unprocessed vertices, scans their neighbors, and identifies the best community for each vertex based on delta-modularity. If the best community is different from the current community, it updates the community memberships and marks neighbors as unprocessed. The process continues until a specified number of iterations or until local convergence is achieved.}
+Next, we perform the threshold scaling optimization \cite{com-naim17}, i.e., we reduce the tolerance $\tau$ by a tolerance drop factor of \verb|TOLERANCE_DROP|. This optimization helps minimize the number of iterations performed in the local-moving phase of \Lou{}. It improves performance with little sacrifice in the quality of communities obtained.
 
-\ignore{The aggregation phase aggregates communities into super-vertices to reduce the size of the graph. It first counts the vertices in each community and constructs a new graph with community vertices. It then calculates the total degree of each community and constructs a super-vertex graph. The algorithm ensures that only communities with a non-zero degree are considered. It utilizes a per-thread hashtable to efficiently aggregate edges between communities. The resulting super-vertex graph is returned to the main algorithm for the next iteration.}
+We now discuss the \textit{local-moving} phase of \Lou{}. First, in Lines \ref{alg:louvain--edge-weigths-begin}-\ref{alg:louvain--edge-weigths-end}, we calculate the total edge weights linked to each vertex $K'$ and the total edge weights linked to each community $\Sigma'$. For each iteration (Lines \ref{alg:louvain--iterations-begin}-\ref{alg:louvain--iterations-end}), and for each affected vertex $i$ in the graph $G'$, we use per-thread collision-free hashtables to obtain the best community linked to each vertex $c^*$, as well as the associated delta-modularity (highest) $\delta Q^*$ in parallel using Equation \ref{eq:delta-modularity} (Lines \ref{alg:louvain--best-community-begin}-\ref{alg:louvain--best-community-end}). If the best community $c^*$ is different from the original community membership $C'[i]$ of vertex $i$ (Line \ref{alg:louvain--best-community-same}), we update the community membership of the vertex and atomically update the total edge weights linked to each community in Lines \ref{alg:louvain--perform-move-begin}-\ref{alg:louvain--perform-move-end}. In addition, if this is the first pass of \Lou{} (Line \ref{alg:louvain--remark-pass}), based on \Fro{}, we mark the neighbors of vertex $i$ as affected in Line \ref{alg:louvain--remark}. To minimize unnecessary computation, we also mark vertex $i$ as not affected (whether or not $i$ changes its community) as part of vertex pruning optimization in Line \ref{alg:louvain--prune}. At the end of each iteration, if the total delta-modularity across all vertices $\Delta Q$ is less than the specified tolerance $\tau$, we terminate the local-moving phase (Line \ref{alg:louvain--locally-converged}). We prove the correctness of \FroLou{} in Section \ref{sec:louvain-correctness}.
 
-\input{src/fig-louvain-pass}
+
+
+
+\subsection{Our Dynamic Frontier based LPA (\FroLPA{}, Algorithm \ref{alg:rak})}
+\label{sec:dynamic-rak}
+
+We show how to apply our \textit{Dynamic Frontier} approach (\Fro{}) to \LPA{} in Algorithm \ref{alg:rak} (which we call \FroLPA{}). As before, we take as input the previous snapshot of the graph $G^{t-1}$, the previous community membership of each vertex $C^{t-1}$, and the batch update consisting of edge deletions $\Delta^{t-}$ and insertions $\Delta^{t+}$ in Line \ref{alg:rak--main-begin}. In Lines \ref{alg:rak--mark-begin}-\ref{alg:rak--mark-end}, based on \Fro{}, we mark the initial set of vertices as affected. In Line \ref{alg:rak--membership}, we initialize the community membership of each vertex in the graph $G^t$. For each iteration (Lines \ref{alg:rak--iterations-begin}-\ref{alg:rak--iterations-end}), we perform the \textit{label-propagation} step of \LPA{} in Line \ref{alg:rak--propagate}. If only a small fraction of vertices changed their community membership, we recognize that the communities have converged, and hence close down the algorithm (Line \ref{alg:rak--converged}).
+
+We now discuss the \textit{label-propagation} step of \LPA{}. For each affected vertex $i$ in the graph $G'$, we use per-thread collision-free hash tables to obtain the most weighted label to each vertex $c^*$ in parallel using Equation \ref{eq:lpa} (Line \ref{alg:rak--best-community}). If the best label $c^*$ is different from the original label $C'[i]$ of vertex $i$ (Line \ref{alg:rak--best-community-same}), we update the label associated with the vertex in Line \ref{alg:rak--perform-move}. In addition, based on \Fro{}, we mark the neighbors of vertex $i$ as affected in Line \ref{alg:rak--remark}. As earlier, we also mark vertex $i$ as not affected (whether or not $i$ changes its community) as part of vertex pruning optimization in Line \ref{alg:rak--prune}. We prove the correctness of \FroLPA{} in Section \ref{sec:lpa-correctness}.
+
+
+
+
+\subsection{Our Dynamic Frontier based Hybrid Louvain-LPA (\FroHyb{}, Algorithm \ref{alg:hybrid})}
+\label{sec:dynamic-hybrid}
+
+\Lou{} is known for its high-quality community detection but at the cost of being slow. On the other hand, \LPA{} is fast, but the communities it detects are of moderate quality. We propose to combine the strengths of both algorithms by creating a Hybrid dynamic algorithm, which we call \FroHyb{}. One could use either \Lou{} or \LPA{} as the base (static) algorithm for obtaining the initial communities and use the other (dynamic) algorithm to update the communities. Our initial experimentation shows that using \Lou{} as the base/static method and \LPA{} as the dynamic method (i.e., \FroHyb{}), provides us with superior performance. Algorithm \ref{alg:hybrid} shows the details of this approach.
+
+
+
+
+\subsection{Maintaining quality across batches}
+\label{sec:restart}
+
+In our experiments with continuous batch updates of edge insertions of size $10^{-3} |E|$, we find that the quality of communities obtained using the \DelLou{} and \FroLou{} starts to drop (compared to \StaLou{}) by $48\%$ (rapid decline) and $5.7\%$ respectively after around $1300$ batches of updates. The same happens for \FroHyb{} by $10\%$ after around $600$ updates. Therefore, we conservatively use a \verb|RESTART_LOUVAIN| of $1000$, and a \verb|RESTART_HYBRID| of $500$ (see Lines \ref{alg:louvain--restart-begin}-\ref{alg:louvain--restart-end} in Algorithm \ref{alg:louvain}, and Lines \ref{alg:hybrid--restart-begin}-\ref{alg:hybrid--restart-end} in Algorithm \ref{alg:hybrid}). As the lines show, we run \StaLou{} once for $1000$/$500$ batches of updates to maintain the quality of communities across multiple batch updates and correct the error introduced. We adjust our reported timings by amortizing its cost.
+
+
+
+
+\subsection{Time and Space complexity}
+\label{sec:complexity}
+
+To analyze the time complexity of our algorithms, we use $N_B$ to denote the number of vertices marked as affected (which is dependent on the size and nature of batch update) by the dynamic algorithm on a batch $B$ of edge updates, use $M_B$ to denote the number of edges with one endpoint in $N_B$, and $K$ to denote the total number of iterations performed. Then the time complexity of Algorithms \ref{alg:louvain}-\ref{alg:hybrid} is $O(K M_B)$. In the worst case, the time complexity of our algorithms would be the same as that of the respective static algorithms, i.e., $O(KM)$. The space complexity of our algorithms is the same as that of the static algorithms, i.e., $O(N + M)$.

@@ -1,18 +1,20 @@
-Consider an undirected graph $G(V, E, w)$ with $V$ representing the set of vertices, $E$ the set of edges, and $w_{ij} = w_{ji}$ denoting the weight associated with each edge. In the case of an unweighted graph, we assume unit weight for each edge ($w_{ij} = 1$). Additionally, the neighbors of a vertex $i$ are denoted as $J_i = \{j\ |\ (i, j) \in E\}$, the weighted degree of each vertex as $K_i = \sum_{j \in J_i} w_{ij}$, the total number of vertices as $N = |V|$, the total number of edges as $M = |E|$, and the sum of edge weights in the undirected graph as $m = \sum_{i, j \in V} w_{ij}/2$.
+Let $G(V, E, w)$ be an undirected graph, with $V$ as the set of vertices, $E$ as the set of edges, and $w_{ij} = w_{ji}$ a positive weight associated with each edge in the graph. If the graph is unweighted, we assume each edge to be associated with unit weight ($w_{ij} = 1$). Further, we denote the neighbors of each vertex $i$ as $J_i = \{j\ |\ (i, j) \in E\}$, the weighted degree of each vertex $i$ as $K_i = \sum_{j \in J_i} w_{ij}$, the total number of vertices in the graph as $N = |V|$, the total number of edges in the graph as $M = |E|$, and the sum of edge weights in the undirected graph as $m = \sum_{i, j \in V} w_{ij}/2$.
 
 
 
 
 \subsection{Community detection}
 
-Disjoint community detection is the process of identifying a community membership mapping, $C: V \rightarrow \Gamma$, where each vertex $i \in V$ is assigned a community-id $c \in \Gamma$, where $\Gamma$ is the set of community-ids. We denote the vertices of a community $c \in \Gamma$ as $V_c$, and the community that a vertex $i$ belongs to as $C_i$. Further, we denote the neighbors of vertex $i$ belonging to a community $c$ as $J_{i \rightarrow c} = \{j\ |\ j \in J_i\ and\ C_j = c\}$, the sum of those edge weights as $K_{i \rightarrow c} = \sum_{j \in J_{i \rightarrow c}} w_{ij}$, the sum of weights of edges within a community $c$ as $\sigma_c = \sum_{(i, j) \in E\ and\ C_i = C_j = c} w_{ij}$, and the total edge weight of a community $c$ as $\Sigma_c = \sum_{(i, j) \in E\ and\ C_i = c} w_{ij}$ \cite{com-leskovec21}.
+Disjoint community detection is the process of arriving at a community membership mapping, $C: V \rightarrow \Gamma$, which maps each vertex $i \in V$ to a community-id $c \in \Gamma$, where $\Gamma$ is the set of community-ids. We denote the vertices of a community $c \in \Gamma$ as $V_c$. We denote the community that a vertex $i$ belongs to as $C_i$. Further, we denote the neighbors of vertex $i$ belonging to a community $c$ as $J_{i \rightarrow c} = \{j\ |\ j \in J_i\ and\ C_j = c\}$, the sum of those edge weights as $K_{i \rightarrow c} = \{w_{ij}\ |\ j \in J_{i \rightarrow c}\}$, the sum of weights of edges within a community $c$ as $\sigma_c = \sum_{(i, j) \in E\ and\ C_i = C_j = c} w_{ij}$, and the total edge weight of a community $c$ as $\Sigma_c = \sum_{(i, j) \in E\ \mbox{and}\ C_i = c} w_{ij}$ \cite{com-zarayeneh21, com-leskovec21}.
 
 
 
 
 \subsection{Modularity}
 
-Modularity serves as a\ignore{fitness} metric for assessing the quality of communities identified by heuristic-based community detection algorithms. It is computed as the difference between the fraction of edges within communities and the expected fraction if edges were randomly distributed, yielding a range of $[-0.5, 1]$ where higher values indicate better results \cite{com-brandes07}.\ignore{The optimization of this metric theoretically leads to the optimal grouping \cite{com-newman04, com-traag11}.} The modularity $Q$ of identified communities is determined using Equation \ref{eq:modularity}, where $\delta$ represents the Kronecker delta function ($\delta (x,y)=1$ if $x=y$, $0$ otherwise). The \textit{delta modularity} of moving a vertex $i$ from community $d$ to community $c$, denoted as $\Delta Q_{i: d \rightarrow c}$, can be computed using Equation \ref{eq:delta-modularity}.
+Modularity is a fitness metric that is used to evaluate the quality of communities obtained by community detection algorithms (as they are heuristic based). It is calculated as the difference between the fraction of edges within communities and the expected fraction of edges if the edges were distributed randomly. It lies in the range $[-0.5, 1]$ (higher is better) \cite{com-brandes07}. Optimizing this function theoretically leads to the best possible grouping \cite{com-newman04, com-traag11}.
+
+We can calculate the modularity $Q$ of obtained communities using Equation \ref{eq:modularity}, where $\delta$ is the Kronecker delta function ($\delta (x,y)=1$ if $x=y$, $0$ otherwise). The \textit{delta modularity} of moving a vertex $i$ from community $d$ to community $c$, denoted as $\Delta Q_{i: d \rightarrow c}$, can be calculated using Equation \ref{eq:delta-modularity}.
 
 \begin{equation}
 \label{eq:modularity}
@@ -30,7 +32,49 @@ Modularity serves as a\ignore{fitness} metric for assessing the quality of commu
 
 
 
-\subsection{Louvain algorithm}
+\subsection{Algorithms for Static Graphs}
+
+\subsubsection{Louvain algorithm \cite{com-blondel08}}
 \label{sec:about-louvain}
 
-The Louvain method \cite{com-blondel08} is a modularity optimization based agglomerative algorithm for identifying high quality disjoint communities in large networks. It has a time complexity of $O (L |E|)$ (with $L$ being the total number of iterations performed), and a space complexity of $O(|V| + |E|)$ \cite{com-lancichinetti09}. The algorithm consists of two phases: the \textit{local-moving phase}, where each vertex $i$ greedily decides to move to the community of one of its neighbors $j \in J_i$ that gives the greatest increase in modularity $\Delta Q_{i:C_i \rightarrow C_j}$ (using Equation \ref{eq:delta-modularity}), and the \textit{aggregation phase}, where all the vertices in a community are collapsed into a single super-vertex. These two phases make up one pass, which repeats until there is no further increase in modularity \cite{com-blondel08, com-leskovec21}. We observe that Louvain obtains high-quality communities, with $3.0 - 30\%$ higher modularity than that obtained by LPA, but requires $2.3 - 14\times$ longer to converge.
+\Lou{} is a greedy, modularity optimization based agglomerative algorithm that can find high quality communities within a graph, with a time complexity of $O (KM)$ (where $K$ is the number of iterations performed across all passes), and a space complexity of $O(N + M)$ \cite{com-lancichinetti09}. It consists of two phases: the \textit{local-moving phase}, where each vertex $i$ greedily decides to move to the community of one of its neighbors $j \in J_i$ that gives the greatest increase in modularity $\Delta Q_{i:C_i \rightarrow C_j}$ (using Equation \ref{eq:delta-modularity}), and the \textit{aggregation phase}, where all the vertices in a community are collapsed into a single super-vertex. These two phases make up one pass, which repeats until there is no further increase in modularity. As a result, we have a hierarchy of community memberships for each vertex as a dendrogram. The top-level hierarchy is the final result of the algorithm \cite{com-leskovec21}.
+
+
+\subsubsection{Label Propagation Algorithm (LPA) \cite{com-raghavan07}}
+\label{sec:about-rak}
+
+\LPA{} is a popular diffusion-based method for finding communities, that is simpler, faster, and more scalable (due to its lower memory footprint), compared to \Lou{}. In \LPA{}, every vertex $i$ is initialized with a unique label (community id) $C_i$ and at every step, each vertex adopts the label with the most interconnecting weight, as shown in Equation \ref{eq:lpa}. Through this iterative process, densely connected groups of vertices form a consensus on a unique label to form communities. The algorithm converges when at least $1-\tau$ fraction of vertices do not change their community membership (where $\tau$ is the tolerance parameter). It has a time complexity of $O(KM)$ and a space complexity of $O(N + M)$, where $K$ is the number of iterations performed.
+%% su: We are using the original LPA algorithm for community detection.
+%% kk: what is n? Do you want to use N?
+%% kk: LPA or RAK?
+
+\begin{equation}
+\label{eq:lpa}
+  C_i =\ \underset{c\ \in \ \Gamma}{\arg\max} { \sum_{j \in J_i\ |\ C_j = c} w_{ij} }
+\end{equation}
+
+
+
+
+\subsection{Dynamic approaches}
+\label{sec:dynamic-graphs}
+
+A dynamic graph can be denoted as a sequence of graphs, where $G^t(V^t, E^t, w^t)$ denotes the graph at time step $t$. The changes between graphs $G^{t-1}(V^{t-1}, E^{t-1}, w^{t-1})$ and $G^t(V^t, E^t, w^t)$ at consecutive time steps $t-1$ and $t$ can be denoted as a batch update $\Delta^t$ at time step $t$ which consists of a set of edge deletions $\Delta^{t-} = \{(i, j)\ |\ i, j \in V\} = E^{t-1} \setminus E^t$ and a set of edge insertions $\Delta^{t+} = \{(i, j, w_{ij})\ |\ i, j \in V; w_{ij} > 0\} = E^t \setminus E^{t-1}$ \cite{com-zarayeneh21}. We refer to the setting where $\Delta^t$ consists of multiple edges being deleted and inserted as a \textit{batch update}.
+
+
+\subsubsection{Naive-dynamic approach}
+\label{sec:naive-dynamic}
+
+The \textit{Naive-dynamic} approach is a simple approach for identifying communities in dynamic networks. Here, one assigns vertices to communities from the previous snapshot of the graph and processes all the vertices, regardless of the edge deletions and insertions in the batch update (hence the prefix \textit{naive}). This is demonstrated in Figure \ref{fig:dynamic-approaches}, where all vertices are marked as affected, highlighted in yellow. Since all communities are also marked as affected, they are all shown as hatched. Note that within the figure, edge deletions are shown in the top row (denoted by dashed lines), edge insertions are shown in the middle row (also denoted by dashed lines), and the migration of a vertex during the community detection algorithm is shown in the bottom row. The community membership obtained through this approach is guaranteed to be at least as accurate as the static algorithm. We refer to the parallel version of this approach as \Nai{}.
+
+
+\subsubsection{Dynamic Delta-screening approach \cite{com-zarayeneh21}}
+\label{sec:delta-screening}
+
+\textit{Dynamic $\Delta$-screening} is a dynamic community detection approach that uses modularity-based scoring to determine an approximate region of the graph in which vertices are likely to change their community membership \cite{com-zarayeneh21}. Figure \ref{fig:dynamic-approaches} presents a high-level overview of the vertices (and communities), linked to a single source vertex $i$, that are identified as affected using the \textit{Dynamic $\Delta$-screening} approach in response to a batch update involving both edge deletions and insertions. As mentioned above, in this figure, edge deletions are shown in the top row (denoted by dashed lines), edge insertions are shown in the middle row (also denoted by dashed lines), and the migration of a vertex during the community detection algorithm is shown in the bottom row. Further, vertices marked as affected are highlighted in yellow, while entire communities marked as affected are hatched (in addition to its vertices being highlighted in yellow).
+
+In the \textit{Dynamic $\Delta$-screening} approach, Zarayeneh et al. first separately sort the batch update consisting of edge deletions $(i, j) \in \Delta^{t-}$ and insertions $(i, j, w) \in \Delta^{t+}$ by their source vertex-id. For edge deletions within the same community, they mark $i$'s neighbors and $j$'s community as affected. For edge insertions across communities, they pick the highest modularity changing vertex $j*$ among all the insertions linked to vertex $i$ and mark $i$'s neighbors and $j*$'s community as affected. Edge deletions between different communities and edge insertions between the same community are unlikely to affect the community membership of either of the vertices or any other vertices and hence ignored.
+
+The affected vertices identified by \textit{Dynamic $\Delta$-screening} apply to the first pass of \Lou{}, and the community membership of each vertex is initialized at the start of the community detection algorithm to that obtained in the previous snapshot of the graph. We note that \textit{Dynamic $\Delta$-screening}, is \textit{not} guaranteed to explore all vertices that have the potential to change their membership \cite{com-zarayeneh21}.
+
+\textit{Dynamic $\Delta$-screening} proposed by Zarayeneh et al. \cite{com-zarayeneh21} is not parallel. In this paper, we translate their approach into a multicore parallel algorithm. To this end, we scan sorted edge deletions and insertions in parallel, apply \textit{Dynamic $\Delta$-screening} as mentioned above, and mark vertices, neighbors of a vertex, and the community of a vertex using three separate flag vectors. Finally, we use the neighbors and community flag vectors to mark appropriate vertices. We also use per-thread collision-free hash tables. We refer to this parallel version of \textit{Dynamic $\Delta$-screening} as \Del{}.

@@ -1,0 +1,13 @@
+\begin{algorithm}[hbtp]
+\caption{\textit{Dynamic Frontier} \textit{Hybrid Louvain-LPA} (\FroHyb{}).}
+\label{alg:hybrid}
+\begin{algorithmic}[1]
+\Function{hybridLouvainLpa}{$G^{t-1}, C^{t-1}, \Delta^{t-}, \Delta^{t+}$}
+  \State $G^t \gets (G^{t-1} \setminus \Delta^{t-}) \cup \Delta^{t+}$
+  \If{$t \bmod \text{\small{RESTART\_HYBRID}} = 0$} \label{alg:hybrid--restart-begin}
+    \Return{$C^{t-1} \gets staticLouvain(G^t)$} % \Comment{Maintain quality}
+  \EndIf \label{alg:hybrid--restart-end}
+  \Return{$lpa(G^{t-1}, C^{t-1}, \Delta^{t-}, \Delta^{t+})$}
+\EndFunction
+\end{algorithmic}
+\end{algorithm}

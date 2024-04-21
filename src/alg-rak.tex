@@ -1,0 +1,47 @@
+\begin{algorithm}[hbtp]
+\caption{\textit{Dynamic Frontier} based \textit{LPA} (\FroLPA{}).}
+\label{alg:rak}
+\begin{algorithmic}[1]
+\Function{lpa}{$G^{t-1}, C^{t-1}, \Delta^{t-}, \Delta^{t+}$} \label{alg:rak--main-begin}
+  \State $G^t \gets (G^{t-1} \setminus \Delta^{t-}) \cup \Delta^{t+}$ \textbf{;} $G' \gets G^t$
+  \ForAll{$(i, j) \in \Delta^{t-}$ \textbf{in parallel}} \label{alg:rak--mark-begin}
+    \State Mark $i$ as affected \textbf{if} $C^{t-1}[i] = C^{t-1}[j]$
+  \EndFor
+  \ForAll{$(i, j, w) \in \Delta^{t+}$ \textbf{in parallel}}
+    \State Mark $i$ as affected \textbf{if} $C^{t-1}[i] \neq C^{t-1}[j]$
+  \EndFor \label{alg:rak--mark-end}
+  \State Vertex membership: $C' \gets C^{t-1}$ \label{alg:rak--membership}
+  \ForAll{$l_i \in [0 .. \text{\small{MAX\_ITERATIONS}})$} \label{alg:rak--iterations-begin}
+    \State $\Delta N \gets lpaMove(G', C')$ \label{alg:rak--propagate}
+    \If{$\Delta N/N \le \tau$} \textbf{break} \Comment{Converged?} \label{alg:rak--converged}
+    \EndIf
+  \EndFor \label{alg:rak--iterations-end}
+  \Return{$C^{t-1} \gets C'$}
+\EndFunction \label{alg:rak--main-end}
+
+\Statex
+
+\Function{lpaMove}{$G', C'$}
+  \State Changed vertices: $\Delta N \gets 0$
+  \ForAll{$i \in V'$ \textbf{in parallel}}
+    \If{$i$ is not affected} \textbf{continue} \label{alg:rak--affected}
+    \EndIf
+    \State Mark $i$ as not affected (prune) \label{alg:rak--prune}
+    \State $c^* \gets$ Most weighted label to $i$ in $G'$ \label{alg:rak--best-community}
+    \If{$c^* = C'[i]$} \textbf{continue} \label{alg:rak--best-community-same}
+    \EndIf
+    \State $C'[i] \gets c^*$ \textbf{;} $\Delta N \gets \Delta N + 1$ \label{alg:rak--perform-move}
+    \State Mark neighbors of $i$ as affected \label{alg:rak--remark}
+  \EndFor
+\Return{$\Delta N$}
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+
+
+
+
+%% Parameter setting
+% TOLERANCE = 0.05
+% MAX\_ITERATIONS = 20
+% MAX\_THREADS = 12

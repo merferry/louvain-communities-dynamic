@@ -1,0 +1,52 @@
+\begin{algorithm}[hbtp]
+\caption{\textit{Dynamic $\Delta$-screening} community detection approach.}
+\label{alg:dynamic-delta-screening}
+\begin{algorithmic}
+\Ensure{$\delta V, \delta E, \delta C$: Is vertex, neighbors, or community affected?}
+\Ensure{$H$: Hashtable that maps a community to associated weight}
+\Ensure{$communities$: Community detection algorithm to use.}
+
+\Statex
+
+\Function{dynamicDeltaScreening}{$G^{t-1}, C^{t-1}, \Delta^{t-}, \Delta^{t+}$}
+  \State $G^t \gets G^{t-1} \setminus \Delta^{t-} \cup \Delta^{t+}$
+  \State $\delta V \gets deltaScreeningAffected(G^{t-1}, C^{t-1}, \Delta^{t-}, \Delta^{t+})$
+  \Function{isAffected}{$i$}
+    \Return{$\delta V[i]$}
+  \EndFunction
+\Return{$communities(G^t, C^{t-1}, isAffected)$}
+\EndFunction
+
+\Statex
+
+\Function{deltaScreeningAffected}{$G^{t-1}, C^{t-1}, \Delta^{t-}, \Delta^{t+}$}
+  \State $H, \delta V, \delta E, \delta C \gets \{\}$
+  \ForAll{$[i, j] \in \Delta^{t-}$}
+    \If{$C^{t-1}[i] = C^{t-1}[j]$}
+      \State $\delta V[i], \delta E[i], \delta C[C^{t-1}[j]] \gets true$
+    \EndIf
+  \EndFor
+  \ForAll{$i \in uniqueFrom(\Delta^{t+})$}
+    \State $H \gets \{\}$
+    \ForAll{$[j, w] \in withFrom(\Delta^{t+}, i)$}
+      \If{$C^{t-1}[i] \neq C^{t-1}[j]$}
+        \State $H[C^{t-1}[j]] \gets H[C^{t-1}[j]] + w$
+      \EndIf
+    \EndFor
+    \State $[c_{top}, w_{top}] \gets chooseCommunity(H)$
+    \State $\delta V[i], \delta E[i], \delta C[c_{top}] \gets true$
+  \EndFor
+  \ForAll{$i \in G^{t-1}.vertices()$}
+    \If{$\delta E[i]$}
+      \ForAll{$j \in G^{t-1}.neighbors(i)$}
+        \State $\delta V[j] \gets true$
+      \EndFor
+    \EndIf
+    \If{$\delta C[C^{t-1}[i]]$}
+      \State $\delta V[i] \gets true$
+    \EndIf
+  \EndFor
+  \Return{$\delta V$}
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
