@@ -1,12 +1,9 @@
-We now provide arguments for the correctness of \FroLou{} and \FroLPA{}. To help with this, we refer the reader to Figure \ref{fig:frontier-approach}. Here, pre-existing edges are represented by solid lines, and $i$ represents a source vertex of edge deletions/insertions in the batch update. Edge deletions in the batch update with $i$ as the source vertex are shown in the top row (denoted by dashed lines), edge insertions are shown in the middle row (also denoted by dashed lines), and community migration of vertex $i$ is is shown in the bottom row. Vertices $i_n$ and $j_n$ represent the destination vertices (of edge deletions or insertions). Vertices $i'$, $j'$, and $k'$ signify neighboring vertices of vertex $i$. Finally, vertices $i''$, $j''$, and $k''$ represent non-neighbor vertices (to vertex $i$). Yellow highlighting is used to indicate vertices marked as affected, initially or in the current iteration of the community detection algorithm. We understand this figure is dense, but we tried to capture several details for correctness arguments in Sections \ref{sec:louvain-correctness} and \ref{sec:lpa-correctness}.
-
-
-
-
-\subsection{Correctness of Dynamic Frontier based Louvain (\FroLou{}, Algorithm \ref{alg:louvain})}
+\subsection{Correctness of DF Louvain}
 \label{sec:louvain-correctness}
 
-Given a batch update consisting of edge deletions $\Delta^{t-}$ and insertions $\Delta^{t+}$, we now show that \FroLou{} marks the essential vertices, which have an incentive to change their community membership, as affected. For any given vertex $i$ in the original graph (before the batch update), the delta-modularity of moving it from its current community $d$ to a new community $c$ is given by Equation \ref{eq:delta-modularity-clone}. We now consider the direct effect of each individual edge deletion $(i, j)$ or insertion $(i, j, w)$ in the batch update, on the delta-modularity of the a vertex, as well as the indirect cascading effect of migration of a vertex (to another community) on other vertices.
+We now provide arguments for the correctness of Dynamic Frontier (DF) Louvain. To help with this, we refer the reader to Figure \ref{fig:frontier-approach}. Here, pre-existing edges are represented by solid lines, and $i$ represents a source vertex of edge deletions/insertions in the batch update. Edge deletions in the batch update with $i$ as the source vertex are shown in the top row (denoted by dashed lines), edge insertions are shown in the middle row (also denoted by dashed lines), and community migration of vertex $i$ is is shown in the bottom row. Vertices $i_n$ and $j_n$ represent the destination vertices (of edge deletions or insertions). Vertices $i'$, $j'$, and $k'$ signify neighboring vertices of vertex $i$. Finally, vertices $i''$, $j''$, and $k''$ represent non-neighbor vertices (to vertex $i$). Yellow highlighting is used to indicate vertices marked as affected, initially or in the current iteration of the community detection algorithm. We understand this figure is dense, but we tried to capture several details for the correctness arguments.
+
+Given a batch update consisting of edge deletions $\Delta^{t-}$ and insertions $\Delta^{t+}$, we now show that DF Louvain marks the essential vertices, which have an incentive to change their community membership, as affected. For any given vertex $i$ in the original graph (before the batch update), the delta-modularity of moving it from its current community $d$ to a new community $c$ is given by Equation \ref{eq:delta-modularity-clone}. We now consider the direct effect of each individual edge deletion $(i, j)$ or insertion $(i, j, w)$ in the batch update, on the delta-modularity of the a vertex, as well as the indirect cascading effect of migration of a vertex (to another community) on other vertices.
 
 \begin{equation}
 \label{eq:delta-modularity-clone}
@@ -28,7 +25,7 @@ Given an edge deletion $(i, j)$ between vertices $i$ and $j$ belonging to the sa
 
 Consider the case of edge deletion $(i, j)$ of weight $w$ between vertices $i$ and $j$ belonging to the same community $C_i = C_j = d$ (see Figure \ref{fig:frontier-approach}, where $j = i_1$). Let $i''$ be a vertex belonging $i$'s community $C_{i''} = d$, and let $k''$ be a vertex belonging to another community $C_{k''} = b$. As shown below in Case \textbf{(1)}, the delta-modularity of vertex $i$ moving from its original community $d$ to another community $b$ has a significant positive factor $w/m$. There is thus a chance that vertex $i$ would change its community membership, and we should mark it as affected. The same argument applies for vertex $j$, as the edge is undirected. On the other hand, for the Cases \textbf{(2)}-\textbf{(3)}, there is only a small positive change in delta-modularity for vertex $k''$. Thus, there is little incentive for vertex $k''$ to change its community membership, and no incentive for a change in community membership of vertex $i''$.
 
-Note that it is possible that the community $d$ would split due to the edge deletion. However, this is unlikely, given that one would need a large number of edge deletions between vertices belonging to the same community for the community to split. With \FroLou{}, such rare events are taken care of\ignore{One can take care of such rare events} by running \StaLou{} every \verb|RESTART_LOUVAIN|\ignore{$1000$} batch updates, which also helps us ensure high-quality communities. The same applies to \DelLou{}.
+Note that it is possible that the community $d$ would split due to the edge deletion. However, this is unlikely, given that one would need a large number of edge deletions between vertices belonging to the same community for the community to split. With DF Louvain, such rare events are taken care of\ignore{One can take care of such rare events} by running Static Louvain every \verb|RESTART_LOUVAIN|\ignore{$1000$} batch updates, which also helps us ensure high-quality communities. The same applies to $\Delta$-screening ($\Delta S$) Louvain.
 
 \begin{enumerate}
   \item $\Delta Q_{i:d \rightarrow b}^{new} = \Delta Q_{i:d \rightarrow b} + [\frac{w}{m}] + \frac{w}{2m^2} (\Sigma_c - \Sigma_d + w)$
@@ -111,86 +108,11 @@ Further, from Cases \textbf{(23)}-\textbf{(28)}, we note that there is hardly an
 
 \subsubsection{Overall}
 
-Finally, based on Lemmas \ref{thm:louvain--mark-deletion}, \ref{thm:louvain--mark-insertion}, and \ref{thm:louvain--remark}, we can state the following for \FroLou{}.
+Finally, based on Lemmas \ref{thm:louvain--mark-deletion}, \ref{thm:louvain--mark-insertion}, and \ref{thm:louvain--remark}, we can state the following for DF Louvain.
 
 \begin{theorem}
 \label{thm:louvain}
-Given a batch update, \FroLou{} marks vertices having an incentive to change their community membership as affected. \qed
+Given a batch update, DF Louvain marks vertices having an incentive to change their community membership as affected. \qed
 \end{theorem}
 
-We note that with \FroLou{}, outlier vertices may not be marked as affected even if they have the potential to change community without any direct link to vertices in the frontier. Such outliers may be weakly connected to multiple communities, and if the current community becomes weakly (or less strongly) connected, they may leave and join some other community. It may also be noted that \DelLou{} is also an approximate approach and can miss certain outliers. In practice, however, we see little to no impact of this approximation of the affected subset of the graph on the final quality (modularity) of the communities obtained, as shown in Section \ref{sec:evaluation}.
-
-
-
-
-
-
-\subsection{Correctness of Dynamic Frontier based LPA (\FroLPA{}, Algorithm \ref{alg:rak})}
-\label{sec:lpa-correctness}
-
-Given a batch update consisting of edge deletions $\Delta^{t-}$ and insertions $\Delta^{t+}$, we now show that \FroLPA{} marks all vertices as affected that might change their community membership. With \LPA{}, the label $C_i$ of a vertex $i$ is determined as given in Equation \ref{eq:lpa-clone}. We now consider the direct effect of each individual edge deletion $(i, j)$ or insertion $(i, j, w)$ in the batch update, on the label a vertex, along with the indirect cascading effect of the change of label of a vertex on the label associated with other vertices.
-
-\begin{equation}
-\label{eq:lpa-clone}
-  C_i =\ \underset{c\ \in \ \Gamma}{\arg\max} { \sum_{j \in J_i\ |\ C_j = c} w_{ij} }
-\end{equation}
-
-
-
-
-\subsubsection{On edge deletion}
-
-\begin{lemma}
-\label{thm:lpa--mark-deletion}
-Given an edge deletion $(i, j)$ between vertices $i$ and $j$ having the same label, vertex $i$ (and $j$) should be marked as affected.
-\end{lemma}
-
-Consider the case of edge deletion $(i, j)$ of weight $w$, between vertices $i$ and $j$ having the same label $C_i = C_j = d$. The new label of $i$ would be $C_i^{new} = \arg\max \{ [d, K_{i \rightarrow d} - w], ... \}$. Here we have a reduced total weight associated with the previous best label $d$. Thus, $i$'s label can change, and we mark it as affected. The same argument applies to vertex $j$ as the edges are undirected.
-
-Now consider the case of edge deletion $(i, j)$ between vertices $i$ and $j$ having different labels $C_i = d$ and $C_j = c$ respectively. The new label for vertex $i$ would be $C_i^{new} = \arg\max \{ (d, K_{i \rightarrow d}), ... \}$. As we do not have any reduction in total weight associated with the previous best label $d$, the label of vertex $i$ cannot change. Again, the same argument applies from vertex $j$. \hfill $\diamond$
-
-
-
-
-\subsubsection{On edge insertion}
-
-\begin{lemma}
-\label{thm:lpa--mark-insertion}
-Given an edge insertion $(i, j, w)$ between vertices $i$ and $j$ having different labels, vertex $i$ (and $j$) should be marked as affected.
-\end{lemma}
-
-Consider the case of edge insertion $(i, j, w)$ between vertices $i$ and $j$ having different labels $C_i = d$ and $C_j = c$. The new label for vertex $i$ would be $C_i^{new} = \arg\max \{ (d, K_{i \rightarrow d}), (c, K_{i \rightarrow c} + w) \}$. Here, $c$ may be the new maximum label for vertex $i$. We thus mark vertex $i$ as affected. Again, the same argument applies for $j$ due to the edges being undirected.
-
-Now consider the case of edge insertion $(i, j, w)$ between vertices $i$ and $j$ having the same label $C_i = C_j = d$. The new label for vertex $i$ would be $C_i^{new} = \arg\max \{ (d, K_{i \rightarrow d}) + w), ... \}$. Now, here we actually have an increase in the total weight associated with the previous best label $d$. Thus, the label of vertex $i$ cannot change. Again, the same argument applies to $j$. \hfill $\diamond$
-
-
-
-
-\subsubsection{On vertex migration to another community}
-
-\begin{lemma}
-\label{thm:lpa--remark}
-When a vertex $i$ changes its label, and vertex $j$ is its neighbor, the neighbor vertex $j$ should be marked as affected.
-\end{lemma}
-
-We now consider the indirect effects of deletion and insertion of edges by observing the impact of change in the label of one vertex on the labels of other vertices. Consider the case where a vertex $i$ with label $C_i = d$ changes its label to $C_i^{new} = c$. Let $i'$ be a neighbor of $i$ with $i$'s previous label $C_{i'} = d$, $j'$ be a neighbor of $i$ with $i$'s new label $C_{j'} = d$, and $k'$ be a neighbor of $i$ with another label $C_{k'} = b$.
-
-From Cases \textbf{(29)}-\textbf{(31)}, we note that neighbors $i'$ and $k'$ have a possibility to change their community membership (as thus necessitate marking), but not $j'$. However, to keep the algorithm simple, we simply mark all the neighbors of vertex $i$ as affected. Finally, consider the case where vertices $i$ and $i''$ are not neighbors, and vertex $i$ changes its label. Note that by the definition of \LPA{}, this cannot affect the label of vertex $i''$. However, there could still be an indirect impact, where a common neighbor between vertices $i$ and $i''$ would change its label, which could eventually cause vertex $i''$ to change its label. Note that this case is automatically taken care of as we perform marking of affected vertices during the community detection process.
-
-\begin{enumerate}[start=29]
-  \item $C_{i'}^{new} = \arg\max \{ (d, K_{i' \rightarrow d} - w), (c, K_{i' \rightarrow c} + w) \}$
-  \item $C_{j'}^{new} = \arg\max \{ (c, K_{j' \rightarrow c} + w) \}$
-  \item $C_{k'}^{new} = \arg\max \{ (d, K_{i' \rightarrow d} - w), (c, K_{i' \rightarrow c} + w) \}$ \hfill $\diamond$
-\end{enumerate}
-
-
-
-
-\subsubsection{Overall}
-
-Finally, based on Lemmas \ref{thm:lpa--mark-deletion}, \ref{thm:lpa--mark-insertion}, and \ref{thm:lpa--remark}, we can state the following for \FroLPA{}.
-
-\begin{theorem}
-\label{thm:lpa}
-Upon a given batch update, \FroLPA{} marks any vertices that could change their labels as affected. \qed
-\end{theorem}
+We note that with DF Louvain, outlier vertices may not be marked as affected even if they have the potential to change community without any direct link to vertices in the frontier. Such outliers may be weakly connected to multiple communities, and if the current community becomes weakly (or less strongly) connected, they may leave and join some other community. It may also be noted that $\Delta S$ Louvain is also an approximate approach and can miss certain outliers. In practice, however, we see little to no impact of this approximation of the affected subset of the graph on the final quality (modularity) of the communities obtained, as shown in Section \ref{sec:evaluation}.
