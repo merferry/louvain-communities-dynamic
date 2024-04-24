@@ -40,20 +40,6 @@ We can calculate the modularity $Q$ of obtained communities using Equation \ref{
 \Lou{} is a greedy, modularity optimization based agglomerative algorithm that can find high quality communities within a graph, with a time complexity of $O (KM)$ (where $K$ is the number of iterations performed across all passes), and a space complexity of $O(N + M)$ \cite{com-lancichinetti09}. It consists of two phases: the \textit{local-moving phase}, where each vertex $i$ greedily decides to move to the community of one of its neighbors $j \in J_i$ that gives the greatest increase in modularity $\Delta Q_{i:C_i \rightarrow C_j}$ (using Equation \ref{eq:delta-modularity}), and the \textit{aggregation phase}, where all the vertices in a community are collapsed into a single super-vertex. These two phases make up one pass, which repeats until there is no further increase in modularity. As a result, we have a hierarchy of community memberships for each vertex as a dendrogram. The top-level hierarchy is the final result of the algorithm \cite{com-leskovec21}.
 
 
-\subsubsection{Label Propagation Algorithm (LPA) \cite{com-raghavan07}}
-\label{sec:about-rak}
-
-\LPA{} is a popular diffusion-based method for finding communities, that is simpler, faster, and more scalable (due to its lower memory footprint), compared to \Lou{}. In \LPA{}, every vertex $i$ is initialized with a unique label (community id) $C_i$ and at every step, each vertex adopts the label with the most interconnecting weight, as shown in Equation \ref{eq:lpa}. Through this iterative process, densely connected groups of vertices form a consensus on a unique label to form communities. The algorithm converges when at least $1-\tau$ fraction of vertices do not change their community membership (where $\tau$ is the tolerance parameter). It has a time complexity of $O(KM)$ and a space complexity of $O(N + M)$, where $K$ is the number of iterations performed.
-%% su: We are using the original LPA algorithm for community detection.
-%% kk: what is n? Do you want to use N?
-%% kk: LPA or RAK?
-
-\begin{equation}
-\label{eq:lpa}
-  C_i =\ \underset{c\ \in \ \Gamma}{\arg\max} { \sum_{j \in J_i\ |\ C_j = c} w_{ij} }
-\end{equation}
-
-
 
 
 \subsection{Dynamic approaches}

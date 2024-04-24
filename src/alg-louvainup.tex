@@ -1,0 +1,35 @@
+\begin{algorithm}[hbtp]
+\caption{Updating vertex/community weights \cite{sahu2023gvelouvain}.}
+\label{alg:louvainag}
+\begin{algorithmic}[1]
+\Require{$G'$: Input/super-vertex graph}
+\Require{$C'$: Community membership of each vertex}
+\Ensure{$G'_{C'}$: Community vertices (CSR)}
+\Ensure{$G''$: Super-vertex graph (weighted CSR)}
+\Ensure{$*.offsets$: Offsets array of a CSR graph}
+\Ensure{$H_t$: Collision-free per-thread hashtable}
+
+\Statex
+
+\Function{louvainUpdateWeights}{$G^t, \Delta^{t-}, \Delta^{t+}, C^{t-1}, K^{t-1}, \Sigma^{t-1}$}
+  \State $K \gets K^{t-1}$ \textbf{;} $\Sigma \gets \Sigma^{t-1}$
+  \ForAll{\textbf{threads in parallel}}
+    \ForAll{$(i, j, w) \in \Delta^{t-}$}
+      \State $c \gets C[i]$
+      \If{$i \in work_{th}$} $K[i] \gets K[i] - w$
+      \EndIf
+      \If{$c \in work_{th}$} $\Sigma[c] \gets \Sigma[c] - w$
+      \EndIf
+    \EndFor
+    \ForAll{$(i, j, w) \in \Delta^{t+}$}
+      \State $c \gets C[i]$
+      \If{$i \in work_{th}$} $K[i] \gets K[i] + w$
+      \EndIf
+      \If{$c \in work_{th}$} $\Sigma[c] \gets \Sigma[c] + w$
+      \EndIf
+    \EndFor
+  \EndFor
+  \Return $K, \Sigma$
+\EndFunction
+\end{algorithmic}
+\end{algorithm}

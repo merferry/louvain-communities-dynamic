@@ -1,87 +1,28 @@
 \begin{algorithm}[hbtp]
-\caption{\textit{Dynamic Frontier} based \textit{Louvain} (\FroLou{}).}
+\caption{Our Parallel Dynamic Frontier (DF) Louvain.}
 \label{alg:louvain}
 \begin{algorithmic}[1]
-\Function{louvain}{$G^{t-1}, C^{t-1}, \Delta^{t-}, \Delta^{t+}$} \label{alg:louvain--main-begin}
-  \State $G^t \gets (G^{t-1} \setminus \Delta^{t-}) \cup \Delta^{t+}$ \textbf{;} $G' \gets G^t$ \label{alg:louvain--update-graph}
-  \If{$t \bmod \text{\small{RESTART\_LOUVAIN}} = 0$} \label{alg:louvain--restart-begin}
-    \Return{$C^{t-1} \gets staticLouvain(G^t)$} % \Comment{Maintain quality}
-  \EndIf \label{alg:louvain--restart-end}
+\Require{$G^{t-1}, G^t$: Previous, current input graph}
+\Require{$\Delta^{t-}, \Delta^{t+}$: Edge deletions and insertions (batch update)}
+\Require{$C^{t-1}$: Previous community of each vertex}
+\Require{$K^{t-1}$: Previous weighted-degree of each vertex}
+\Require{$\Sigma^{t-1}$: Previous total edge weight of each community}
+\Ensure{$G'$: Current/super-vertex graph.}
+\Ensure{$C, C'$: Current community of each vertex in $G^t$, $G'$}
+\Ensure{$K, K'$: Current weighted-degree of each vertex in $G^t$, $G'$}
+\Ensure{$\Sigma, \Sigma'$: Current total edge weight of each community in $G^t$, $G'$}
+\Ensure{$\tau, \tau_{agg}$: Iteration, aggregation tolerance}
+
+\Statex
+
+\Function{louvain}{$G^{t-1}, G^t, \Delta^{t-}, \Delta^{t+}, C^{t-1}, K^{t-1}, \Sigma^{t-1}$} \label{alg:louvain--main-begin}
+  \State $\rhd$ Initial marking phase
   \ForAll{$(i, j) \in \Delta^{t-}$ \textbf{in parallel}} \label{alg:louvain--mark-begin}
     \State Mark $i$ as affected \textbf{if} $C^{t-1}[i] = C^{t-1}[j]$
   \EndFor
   \ForAll{$(i, j, w) \in \Delta^{t+}$ \textbf{in parallel}}
     \State Mark $i$ as affected \textbf{if} $C^{t-1}[i] \neq C^{t-1}[j]$
   \EndFor \label{alg:louvain--mark-end}
-  \State Vertex membership: $C \gets [0 .. |V^t|)$ \label{alg:louvain--membership}
-  \ForAll{$l_p \in [0 .. \text{\small{MAX\_PASSES}})$} \label{alg:louvain--passes-begin}
-    \State Super-vertex membership: $C' \gets [0 .. |V'|)$ \label{alg:louvain--super-membership-begin}
-    \If{$l_p = 0$} $C' \gets C^{t-1}$ \Comment{First pass?}
-    \EndIf \label{alg:louvain--super-membership-end}
-    \State $l_i \gets louvainMove(G', C', l_p)$ \label{alg:louvain--local-move} \textbf{;} $C_{old} \gets C$
-    \If{$l_i \le 1$} \textbf{break} \Comment{Globally converged?} \label{alg:louvain--globally-converged}
-    \EndIf
-    \State $C' \gets$ Renumber communities in $C'$ \label{alg:louvain--renumber}
-    \State $C \gets$ Lookup dendrogram using $C$ to $C'$ \label{alg:louvain--lookup}
-    \State $|\Gamma|, |\Gamma_{old}| \gets$ Number of communities in $C$, $C_{old}$
-    \If{$|\Gamma|/|\Gamma_{old}| > \tau_{agg}$} \textbf{break} \Comment{Low shrink?} \label{alg:louvain--aggregation-tolerance}
-    \EndIf
-    \State $G' \gets$ Aggregate communities in $G'$ using $C'$ \label{alg:louvain--aggregate}
-    \State $\tau \gets \tau / \text{\small{TOLERANCE\_DROP}}$ \Comment{Threshold scaling} \label{alg:louvain--threshold-scaling}
-  \EndFor \label{alg:louvain--passes-end}
-  \Return{$C^{t-1} \gets C$} \label{alg:louvain--main-return}
-\EndFunction \label{alg:louvain--main-end}
-
-\Statex
-
-\Function{louvainMove}{$G', C', l_p$}
-  \State $K' \gets$ Total edge weight of each vertex in $G'$ \label{alg:louvain--edge-weigths-begin}
-  \State $\Sigma' \gets$ Total edge weight of each community in $G'$ \label{alg:louvain--edge-weigths-end}
-  \ForAll{$l_i \in [0 .. \text{\small{MAX\_ITERATIONS}})$} \label{alg:louvain--iterations-begin}
-    \State Delta modularity: $\Delta Q \gets 0$
-    \ForAll{$i \in V'$ \textbf{in parallel}}
-      \If{$i$ is not affected} \textbf{continue} \label{alg:louvain--is-affected}
-      \EndIf
-      \State Mark $i$ as not affected (prune) \label{alg:louvain--prune}
-      \State $c^* \gets$ Best community linked to $i$ in $G'$ \label{alg:louvain--best-community-begin}
-      \State $\delta Q^* \gets$ Delta-modularity of moving $i$ to $c^*$ \label{alg:louvain--best-community-end}
-      \If{$c^* = C'[i]$} \textbf{continue} \label{alg:louvain--best-community-same}
-      \EndIf
-      \State $C'[i] \gets c^*$ \textbf{;} $\Delta Q \gets \Delta Q + \delta Q^*$ \label{alg:louvain--perform-move-begin}
-      \State $\Sigma'[d] -= K'[i]$ \textbf{;} $\Sigma'[c] += K'[i]$ \textbf{atomic} \label{alg:louvain--perform-move-end}
-      \If{$l_p \neq 0$} \textbf{continue} \Comment{Not first pass?} \label{alg:louvain--remark-pass}
-      \EndIf
-      \State Mark neighbors of $i$ as affected \label{alg:louvain--remark}
-    \EndFor \label{alg:louvain--iterations-end}
-    \If{$\Delta Q \le \tau$} \textbf{break} \Comment{Locally converged?} \label{alg:louvain--locally-converged}
-    \EndIf
-  \EndFor
-  \Return{$l_i$}
-\EndFunction
-\end{algorithmic}
-\end{algorithm}
-
-
-
-
-%% Parameter setting
-% $\tau \gets TOLERANCE\_INITIAL$
-% TOLERANCE\_INITIAL = 0.01
-% TOLERANCE\_DECLINE = 10
-% MAX\_PASSES = 500
-
-
-
-
-
-\ignore{
-\begin{algorithm}[hbtp]
-\caption{\textit{Dynamic Frontier Louvain} (\FroLou{}).}
-\label{alg:louvain}
-\begin{algorithmic}[1]
-\Function{\FroLou{}}{$G^t, \Delta^{t-}, \Delta^{t+}, C^{t-1}, K^{t-1}, \Sigma^{t-1}$} \label{alg:louvain--main-begin}
-  \State $\rhd$ Initial marking phase
-  \State \Fro{}\textsc{-initial}($G^t, \Delta^{t-}, \Delta^{t+}, C^{t-1}$) \label{alg:louvain--mark} \Comment{See Alg. \ref{alg:frontier}}
   \State $\rhd$ Initialization phase
   \State Vertex membership: $C \gets [0 .. |V^t|)$ \label{alg:louvain--initialization-begin}
   \State $K \gets vertexWeights(K^{t-1}, \Delta^{t-}, \Delta^{t+})$
@@ -103,7 +44,7 @@
     \State $\tau \gets \tau / \text{\small{TOLERANCE\_DROP}}$ \Comment{Threshold scaling} \label{alg:louvain--threshold-scaling}
   \EndFor \label{alg:louvain--passes-end}
   \State $C \gets$ Lookup dendrogram using $C$ to $C'$ \label{alg:louvain--lookup-last}
-  \Return{$C^{t-1} \gets C, K^{t-1} \gets K, \Sigma^{t-1} \gets \Sigma$} \label{alg:louvain--main-return}
+  \Return{$C, K, \Sigma$} \label{alg:louvain--main-return}
 \EndFunction \label{alg:louvain--main-end}
 
 \Statex
@@ -137,5 +78,3 @@
 % TOLERANCE\_INITIAL = 0.01
 % TOLERANCE\_DECLINE = 10
 % MAX\_PASSES = 500
-
-}

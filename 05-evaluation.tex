@@ -33,7 +33,6 @@ Table \ref{tab:dataset} shows the graphs we use in our experiments. All of them 
 We take a base graph from the dataset and generate a random batch update \cite{com-zarayeneh21} consisting of an equal mix of edge deletions and insertions \cite{com-chong13}, each with an edge weight of $1$. All batch updates are undirected, i.e., for every edge insertion $(i, j, w)$ in the batch update, the edge $(j, i, w)$ is also a part of the batch update. For simplicity, we generate these edges such that the selection of each vertex (as endpoint) is equally probable, and we do not add any new vertices to the graph. Testing with batches having other distributions is part of our future work.
 
 \input{src/fig-louvain}
-\input{src/fig-rak}
 
 \paragraph{Adjusting batch size}
 
@@ -86,9 +85,6 @@ Intuitively, if the graphs $G^t$ and $G^{t'}$ are identical for some $t$ and $t'
 To measure the stability of \NaiLou{}, \DelLou{}, and \FroLou{}, we proceed as follows. Let $G$ be an initial graph. We generate random batch updates of size $10^{-7} |E|$ to $0.1 |E|$ consisting of edge deletions to obtain the graph $G^1$. We then apply each of the above algorithms on $G^1$ to identify the new communities. Subsequently, we create another batch of updates that consists of inserting the edges deleted in the prior time step. This graph, $G^2$, is essentially the original graph $G$. We obtain the community labels of the vertices in the graph $G^2$ by appealing to the dynamic algorithms. Finally, we compare the community label of each vertex in the graphs $G$ and $G^2$. The resulting match in community membership of vertices with \NaiLou{}, \DelLou{}, and \FroLou{} on batch updates of size $10^{-7} |E|$ to $0.1 |E|$ is shown in Figure \ref{fig:louvainrak-stability--louvain}.
 
 From Figure \ref{fig:louvainrak-stability--louvain}, we observe that\NaiLou{} and \DelLou{} have minimum of $99.68\%$ match with the original community memberships across all batch sizes, while \FroLou{} has a minimum of $99.70\%$ match. This indicates that all these algorithms are stable.
-
-\input{src/fig-hybrid}
-\input{src/fig-hybridss}
 
 
 

@@ -49,8 +49,6 @@ Let us now consider the second iteration (see Figure \ref{fig:frontier-example-0
 In the subsequent iteration (see Figure \ref{fig:frontier-example-06}), no other vertices have a strong enough reason to change their community membership. At this point, when employing \Lou{}, the aggregation phase commences consolidating communities into super-vertices to prepare for the subsequent pass of the algorithm. However, when employing the \LPA{}, this marks the conclusion of the algorithm.
 
 \input{src/alg-louvain}
-\input{src/alg-rak}
-\input{src/alg-hybrid}
 
 
 
@@ -67,24 +65,6 @@ Next, at Line \ref{alg:louvain--aggregation-tolerance}, we check whether only a 
 Next, we perform the threshold scaling optimization \cite{com-naim17}, i.e., we reduce the tolerance $\tau$ by a tolerance drop factor of \verb|TOLERANCE_DROP|. This optimization helps minimize the number of iterations performed in the local-moving phase of \Lou{}. It improves performance with little sacrifice in the quality of communities obtained.
 
 We now discuss the \textit{local-moving} phase of \Lou{}. First, in Lines \ref{alg:louvain--edge-weigths-begin}-\ref{alg:louvain--edge-weigths-end}, we calculate the total edge weights linked to each vertex $K'$ and the total edge weights linked to each community $\Sigma'$. For each iteration (Lines \ref{alg:louvain--iterations-begin}-\ref{alg:louvain--iterations-end}), and for each affected vertex $i$ in the graph $G'$, we use per-thread collision-free hashtables to obtain the best community linked to each vertex $c^*$, as well as the associated delta-modularity (highest) $\delta Q^*$ in parallel using Equation \ref{eq:delta-modularity} (Lines \ref{alg:louvain--best-community-begin}-\ref{alg:louvain--best-community-end}). If the best community $c^*$ is different from the original community membership $C'[i]$ of vertex $i$ (Line \ref{alg:louvain--best-community-same}), we update the community membership of the vertex and atomically update the total edge weights linked to each community in Lines \ref{alg:louvain--perform-move-begin}-\ref{alg:louvain--perform-move-end}. In addition, if this is the first pass of \Lou{} (Line \ref{alg:louvain--remark-pass}), based on \Fro{}, we mark the neighbors of vertex $i$ as affected in Line \ref{alg:louvain--remark}. To minimize unnecessary computation, we also mark vertex $i$ as not affected (whether or not $i$ changes its community) as part of vertex pruning optimization in Line \ref{alg:louvain--prune}. At the end of each iteration, if the total delta-modularity across all vertices $\Delta Q$ is less than the specified tolerance $\tau$, we terminate the local-moving phase (Line \ref{alg:louvain--locally-converged}). We prove the correctness of \FroLou{} in Section \ref{sec:louvain-correctness}.
-
-
-
-
-\subsection{Our Dynamic Frontier based LPA (\FroLPA{}, Algorithm \ref{alg:rak})}
-\label{sec:dynamic-rak}
-
-We show how to apply our \textit{Dynamic Frontier} approach (\Fro{}) to \LPA{} in Algorithm \ref{alg:rak} (which we call \FroLPA{}). As before, we take as input the previous snapshot of the graph $G^{t-1}$, the previous community membership of each vertex $C^{t-1}$, and the batch update consisting of edge deletions $\Delta^{t-}$ and insertions $\Delta^{t+}$ in Line \ref{alg:rak--main-begin}. In Lines \ref{alg:rak--mark-begin}-\ref{alg:rak--mark-end}, based on \Fro{}, we mark the initial set of vertices as affected. In Line \ref{alg:rak--membership}, we initialize the community membership of each vertex in the graph $G^t$. For each iteration (Lines \ref{alg:rak--iterations-begin}-\ref{alg:rak--iterations-end}), we perform the \textit{label-propagation} step of \LPA{} in Line \ref{alg:rak--propagate}. If only a small fraction of vertices changed their community membership, we recognize that the communities have converged, and hence close down the algorithm (Line \ref{alg:rak--converged}).
-
-We now discuss the \textit{label-propagation} step of \LPA{}. For each affected vertex $i$ in the graph $G'$, we use per-thread collision-free hash tables to obtain the most weighted label to each vertex $c^*$ in parallel using Equation \ref{eq:lpa} (Line \ref{alg:rak--best-community}). If the best label $c^*$ is different from the original label $C'[i]$ of vertex $i$ (Line \ref{alg:rak--best-community-same}), we update the label associated with the vertex in Line \ref{alg:rak--perform-move}. In addition, based on \Fro{}, we mark the neighbors of vertex $i$ as affected in Line \ref{alg:rak--remark}. As earlier, we also mark vertex $i$ as not affected (whether or not $i$ changes its community) as part of vertex pruning optimization in Line \ref{alg:rak--prune}. We prove the correctness of \FroLPA{} in Section \ref{sec:lpa-correctness}.
-
-
-
-
-\subsection{Our Dynamic Frontier based Hybrid Louvain-LPA (\FroHyb{}, Algorithm \ref{alg:hybrid})}
-\label{sec:dynamic-hybrid}
-
-\Lou{} is known for its high-quality community detection but at the cost of being slow. On the other hand, \LPA{} is fast, but the communities it detects are of moderate quality. We propose to combine the strengths of both algorithms by creating a Hybrid dynamic algorithm, which we call \FroHyb{}. One could use either \Lou{} or \LPA{} as the base (static) algorithm for obtaining the initial communities and use the other (dynamic) algorithm to update the communities. Our initial experimentation shows that using \Lou{} as the base/static method and \LPA{} as the dynamic method (i.e., \FroHyb{}), provides us with superior performance. Algorithm \ref{alg:hybrid} shows the details of this approach.
 
 
 
