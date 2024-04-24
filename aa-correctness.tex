@@ -3,7 +3,6 @@
 
 
 
-
 \subsection{Correctness of DF Louvain}
 \label{sec:louvain-correctness}
 
@@ -122,3 +121,12 @@ Given a batch update, DF Louvain marks vertices having an incentive to change th
 \end{theorem}
 
 We note that with DF Louvain, outlier vertices may not be marked as affected even if they have the potential to change community without any direct link to vertices in the frontier. Such outliers may be weakly connected to multiple communities, and if the current community becomes weakly (or less strongly) connected, they may leave and join some other community. It may also be noted that $\Delta S$ Louvain is also an approximate approach and can miss certain outliers. In practice, however, we see little to no impact of this approximation of the affected subset of the graph on the final quality (modularity) of the communities obtained, as shown in Section \ref{sec:evaluation}.
+
+
+
+
+\input{src/fig-temporal-sx-mathoverflow}
+\input{src/fig-temporal-sx-askubuntu}
+\input{src/fig-temporal-sx-superuser}
+\input{src/fig-temporal-wiki-talk-temporal}
+\input{src/fig-temporal-sx-stackoverflow}
