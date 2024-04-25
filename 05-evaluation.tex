@@ -32,7 +32,8 @@ Table \ref{tab:dataset} shows the graphs we use in our experiments. All of them 
 
 We take a base graph from the dataset and generate a random batch update \cite{com-zarayeneh21} consisting of an equal mix of edge deletions and insertions \cite{com-chong13}, each with an edge weight of $1$. All batch updates are undirected, i.e., for every edge insertion $(i, j, w)$ in the batch update, the edge $(j, i, w)$ is also a part of the batch update. For simplicity, we generate these edges such that the selection of each vertex (as endpoint) is equally probable, and we do not add any new vertices to the graph. Testing with batches having other distributions is part of our future work.
 
-\input{src/fig-louvain}
+\input{src/fig-8020-runtime}
+\input{src/fig-8020-modularity}
 
 \paragraph{Adjusting batch size}
 
@@ -48,8 +49,8 @@ We employ $5$ distinct random batch updates for each batch size and report avera
 
 Community detection is an NP-hard problem and existing polynomial algorithms are \textit{heuristic}. We study correctness in terms of \textit{modularity score} of communities identified (higher is better), similar to previous works in the area \cite{com-traag19, com-zarayeneh21}. As Figures \ref{fig:louvain}-\ref{fig:hybrid} show, modularity of communities detected by our proposed dynamic algorithms is close to the modularity of communities detected by corresponding static algorithms.
 
-\input{src/fig-louvainrak-affected}
-\input{src/fig-louvainrak-stability}
+\input{src/fig-measure-affected}
+\input{src/fig-measure-stability}
 
 
 
