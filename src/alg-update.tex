@@ -1,0 +1,37 @@
+\begin{algorithm}[hbtp]
+\caption{Updating vertex/community weights in parallel.}
+\label{alg:update}
+\begin{algorithmic}[1]
+\Require{$G^t$: Current input graph}
+\Require{$\Delta^{t-}, \Delta^{t+}$: Edge deletions and insertions (batch update)}
+\Require{$C^{t-1}$: Previous community of each vertex}
+\Require{$K^{t-1}$: Previous weighted-degree of each vertex}
+\Require{$\Sigma^{t-1}$: Previous total edge weight of each community}
+\Ensure{$K$: Updated weighted-degree of each vertex}
+\Ensure{$\Sigma$: Updated total edge weight of each community}
+\Ensure{$work_{th}$: Work-list of current thread}
+
+\Statex
+
+\Function{updateWeights}{$G^t, \Delta^{t-}, \Delta^{t+}, C^{t-1}, K^{t-1}, \Sigma^{t-1}$}
+  \State $K \gets K^{t-1}$ \textbf{;} $\Sigma \gets \Sigma^{t-1}$ \label{alg:update--init}
+  \ForAll{\textbf{threads in parallel}} \label{alg:update--loopdel-begin}
+    \ForAll{$(i, j, w) \in \Delta^{t-}$}
+      \State $c \gets C^{t-1}[i]$ \label{alg:update--delc}
+      \If{$i \in work_{th}$} $K[i] \gets K[i] - w$ \label{alg:update--delk}
+      \EndIf
+      \If{$c \in work_{th}$} $\Sigma[c] \gets \Sigma[c] - w$ \label{alg:update--delsigma}
+      \EndIf
+    \EndFor \label{alg:update--loopdel-end}
+    \ForAll{$(i, j, w) \in \Delta^{t+}$} \label{alg:update--loopins-begin}
+      \State $c \gets C^{t-1}[i]$
+      \If{$i \in work_{th}$} $K[i] \gets K[i] + w$
+      \EndIf
+      \If{$c \in work_{th}$} $\Sigma[c] \gets \Sigma[c] + w$
+      \EndIf
+    \EndFor
+  \EndFor \label{alg:update--loopins-end}
+  \Return $\{K, \Sigma\}$ \label{alg:update--return}
+\EndFunction
+\end{algorithmic}
+\end{algorithm}

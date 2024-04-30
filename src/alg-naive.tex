@@ -1,17 +1,32 @@
 \begin{algorithm}[hbtp]
-\caption{\textit{Naive-dynamic} community detection approach.}
+\caption{Our Parallel \textit{Naive-dynamic (ND)} Louvain.}
 \label{alg:naive}
-\begin{algorithmic}
-\Ensure{$communities$: Community detection algorithm to use.}
+\begin{algorithmic}[1]
+\Require{$G^{t-1}, G^t$: Previous, current input graph}
+\Require{$\Delta^{t-}, \Delta^{t+}$: Edge deletions and insertions (batch update)}
+\Require{$C^{t-1}, C^t$: Previous, current community of each vertex}
+\Require{$K^{t-1}, K^t$: Previous, current weighted-degree of vertices}
+\Require{$\Sigma^{t-1}, \Sigma^t$: Previous, current total edge weight of communities}
+\Ensure{$isAffected(i)$: Is vertex $i$ is marked as affected?}
+\Ensure{$inAffectedRange(i)$: Can $i$ be incrementally marked?}
+\Ensure{$F$: Lambda functions passed to parallel Louvain (Alg. \ref{alg:louvain})}
 
 \Statex
 
-\Function{naiveDynamic}{$G^{t-1}, C^{t-1}, \Delta^{t-}, \Delta^{t+}$}
-  \State $G^t \gets G^{t-1} \setminus \Delta^{t-} \cup \Delta^{t+}$
-  \Function{isAffected}{$i$}
-    \Return{$true$}
-  \EndFunction
-  \Return{$communities(G^t, C^{t-1}, \{isAffected\})$}
+\Function{naiveDynamic}{$G^{t-1}, G^t, \Delta^{t-}, \Delta^{t+}, C^{t-1}, K^{t-1}, \Sigma^{t-1}$}
+  \State $\rhd$ Mark affected vertices
+  \Function{isAffected}{$i$} \label{alg:naive--isaff-begin}
+    \Return{$1$}
+  \EndFunction \label{alg:naive--isaff-end}
+  \Function{inAffectedRange}{$i$} \label{alg:naive--isaffrng-begin}
+    \Return{$1$}
+  \EndFunction \label{alg:naive--isaffrng-end}
+  \State $F \gets \{isAffected, inAffectedRange\}$ \label{alg:naive--lambdas}
+  \State $\rhd$ Use $K^{t-1}$, $\Sigma^{t-1}$ as auxiliary information (Alg. \ref{alg:update})
+  \State $\{K^t, \Sigma^t\} \gets updateWeights(G^t, \Delta^{t-}, \Delta^{t+}, C^{t-1}, K^{t-1}, \Sigma^{t-1})$\label{alg:naive--auxliliary}
+  \State $\rhd$ Obtain updated communities (Alg. \ref{alg:louvain})
+  \State $C^t \gets louvain(G^t, C^{t-1}, K^t, \Sigma^t, F)$ \label{alg:naive--louvain}
+  \Return{$\{C^t, K^t, \Sigma^t\}$} \label{alg:naive--return}
 \EndFunction
 \end{algorithmic}
 \end{algorithm}

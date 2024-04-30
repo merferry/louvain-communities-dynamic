@@ -10,7 +10,8 @@ A growing number of research efforts have focused on detecting communities in dy
 
 However, a critical examination of the extant literature on dynamic community detection algorithms indicates a few shortcomings. Some of these algorithms \cite{com-cordeiro16, com-meng16} do not outperform static algorithms even for modest-sized batch updates. Aynaud et al. \cite{com-aynaud10} and Chong et al. \cite{com-chong13} adapt the existing community labels and run an algorithm, such as Louvain, on the entire graph. Often, this is unwarranted since not every vertex would need to change its community on the insertion/deletion of a few edges. Cordeiro et al. \cite{com-cordeiro16} do not consider the cascading impact of changes in community labels, where the community label of a vertex changes because of a change in the community label of its neighbor. Zarayeneh et al. \cite{com-zarayeneh21} identify a subset of vertices whose community labels are likely to change on the insertion/deletion of a few edges. However, as this set of vertices identified is large, the algorithm of Zaranayeh et al. incurs a significant computation time. Moreover, most of the reported algorithms \cite{com-aynaud10, com-chong13, com-meng16, com-cordeiro16, com-zhuang19, com-zarayeneh21} are sequential. There is thus a pressing need for efficient parallel algorithms for community detection on large dynamic graphs. Further, none of the works recommend reusing the previous \textit{total edge weight} of each vertex/community (required for local-moving phase of Louvain algorithm) as auxiliary information to the dynamic algorithm. Recomputing it from scratch is expensive and becomes a bottleneck for dynamic Louvain algorithm. Table \ref{tab:compare} summarizes the above discussion.
 
-\input{src/tab-compare}
+\input{src/tab-compare-properties}
+\ignore{\input{src/tab-compare}}
 
 
 

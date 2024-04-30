@@ -1,16 +1,18 @@
-\begin{table}
-\setlength{\tabcolsep}{1pt}
-\centering
-\begin{tabular}{|l|l|l|l|l|} \hline
- & \cite{com-meng16, com-cordeiro16, com-aynaud10, com-chong13} & \cite{com-xie13, com-zhuang19, com-zarayeneh21} & \cite{com-riedy13} & {\bf This Paper} \\ \hline
-Fully dynamic & $\checkmark$ & $\checkmark$ & $\checkmark$ & $\checkmark$ \\ \hline
-Batch update & $\checkmark$ & $\checkmark$ & $\checkmark$ &  $\checkmark$ \\ \hline
-Process subset & $\times$ & $\checkmark$ & $\checkmark$ & $\checkmark$ \\ \hline
-Cascading updates & $\times$ & $\times$ & $\times$ & $\checkmark$ \\ \hline
-Parallel algorithm & $\times$ & $\times$ & $\checkmark$ & $\checkmark$ \\ \hline
-Hybrid algorithm & $\times$ & $\times$ & $\times$ & $\checkmark$ \\ \hline
-%Large graph evaluation & $\times$ & $\times$ & $\times$ & $\checkmark$ \\ \hline
-\end{tabular}
-\caption{Comparison of community detection papers.}
-\label{tab:compare}
+\begin{table}[hbtp]
+  \centering
+  \caption{Speedup of our multicore implementation of Leiden algorithm compared to other state-of-the-art implementations. Direct comparisons entail running the given implementation on our server, while indirect comparisons (marked with a $*$, explained in Section \ref{sec:comparison-indirect}) involve comparing results relative to a common reference\ignore{(original Leiden)}.\ignore{Notably, the Leiden implementations vary in their classification, with some being multi-core and others multi-node.}}
+  \label{tab:compare}
+  \begin{tabular}{|c|c||c|}
+    \toprule
+    \textbf{Leiden implementation} &
+    \textbf{Published} &
+    \textbf{Our Speedup} \\
+    \midrule
+    Static \cite{sahu2023gvelouvain} & 2023 & $22\times$ \\ \hline
+    Naive-dynamic \cite{csardi2006igraph} & 2006 & $\gg 50\times$ \\ \hline
+    Delta-screening \cite{com-zarayeneh21} & 2021 & $\gg 20\times$ \\ \hline
+    DynaMo \cite{com-zhuang19} & 2019 & $\gg 166\times^*$ \\ \hline
+    Batch \cite{com-chong13} & 2013 & $\gg 22\times^*$ \\ \hline
+  \bottomrule
+  \end{tabular}
 \end{table}
