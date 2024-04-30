@@ -1,4 +1,5 @@
 \subsection{Our Parallel Naive-dynamic (ND) Louvain}
+\label{sec:our-naive}
 
 Algorithm \ref{alg:naive} presents our multicore implementation of Naive dynamic (ND) Louvain, where vertices are assigned to communities from the previous snapshot of the graph, and all vertices are processed irrespective of edge deletions and insertions in the batch update. Algorithm \ref{alg:naive} requires several inputs, including the previous $G^{t-1}$ and current graph snapshots $G^t$, edge deletions $\Delta^{t-}$ and insertions $\Delta^{t+}$ in the batch update, the previous community membership of each vertex $C^{t-1}$, weighted degree of each vertex $K^{t-1}$, and total edge weight of each community $\Sigma^{t-1}$. The output consists of the updated community memberships $C^t$, weighted-degrees $K^t$, and total edge weight of communities $\Sigma^t$.
 
@@ -8,6 +9,7 @@ In the algorithm, we start by defining two lambda functions for the Louvain algo
 
 
 \subsection{Our Parallel Delta-screening (DS) Louvain}
+\label{sec:our-delta}
 
 The pseudocode of our multicore implementation of Delta-screening (DS) Louvain is given in Algorithm \ref{alg:delta}. It uses modularity-based scoring to determine an approximate region of the graph in which vertices are likely to change their community membership \cite{com-zarayeneh21}. The algorithm accepts as input the previous $G^{t-1}$ and current snapshot of the graph $G^t$, edge deletions $\Delta^{t-}$ and insertions $\Delta^{t+}$ in the batch update, the previous community memberships of vertices $C^{t-1}$, weighted degrees of vertices $K^{t-1}$, and total edge weights of communities $\Sigma^{t-1}$. It outputs the updated community memberships $C^t$, weighted-degrees $K^t$, and total edge weights of communities $\Sigma^t$. The batch update, comprising edge deletions $(i, j, w) \in \Delta^{t-}$ and insertions $(i, j, w) \in \Delta^{t+}$, is sorted separately by their source vertex ID $i$ beforehand, as a preprocessing step.
 
@@ -20,6 +22,7 @@ In the algorithm, we first initialize a hashtable $H$, mapping communities to th
 
 
 \subsection{Our Dynamic-supporting Parallel Louvain}
+\label{sec:our-louvain}
 
 The main step of our Dynamic-supporting Parallel Louvain algorithm is given in Algorithm \ref{alg:louvain}. Unlike our implementation of Static Louvain \cite{sahu2023gvelouvain}, in addition to the current graph snapshot $G^t$, it accepts as input the previous community membership of each vertex $C^{t-1}$, the updated weighted-degree of each vertex $K^t$, the updated total edge weight of each community $\Sigma^t$, and a set of lambda functions $F$ which determine if a given vertex is affected, or if it can be incrementally marked as affected (it is in the affected range). It outputs the updated community memberships of vertices $C^t$.
 
@@ -47,6 +50,7 @@ In the algorithm, we begin by obtaining the offsets array for the community vert
 
 
 \subsection{Updating vertex/community weights}
+\label{sec:our-update}
 
 We now discuss the parallel algorithm for obtaining the updated the weighted degree of each vertex $K^t$ and total edge weight of each community $\Sigma^t$, given the previous community memberships of vertices $C^{t-1}$, weighted-degrees of vertices $K^{t-1}$, total edge weights of communities, and the batch update (consisting of edge deletions $\Delta^{t-}$ and insertions $\Delta^{t+}$). Its psuedocode is in Algorithm \ref{alg:update}.
 
@@ -64,7 +68,7 @@ In the algorithm, we begin by initializing $K$ and $\Sigma$, the weighted-degree
 
 % \clearpage
 \subsection{Correctness of DF Louvain}
-\label{sec:louvain-correctness}
+\label{sec:correctness}
 
 We now provide arguments for the correctness of Dynamic Frontier (DF) Louvain. To help with this, we refer the reader to Figure \ref{fig:frontier-approach}. Here, pre-existing edges are represented by solid lines, and $i$ represents a source vertex of edge deletions/insertions in the batch update. Edge deletions in the batch update with $i$ as the source vertex are shown in the top row (denoted by dashed lines), edge insertions are shown in the middle row (also denoted by dashed lines), and community migration of vertex $i$ is is shown in the bottom row. Vertices $i_n$ and $j_n$ represent the destination vertices (of edge deletions or insertions). Vertices $i'$, $j'$, and $k'$ signify neighboring vertices of vertex $i$. Finally, vertices $i''$, $j''$, and $k''$ represent non-neighbor vertices (to vertex $i$). Yellow highlighting is used to indicate vertices marked as affected, initially or in the current iteration of the community detection algorithm. We understand this figure is dense, but we tried to capture several details for the correctness arguments.
 
