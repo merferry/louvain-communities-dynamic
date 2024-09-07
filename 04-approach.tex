@@ -1,44 +1,44 @@
-\subsection{Our Dynamic Frontier approach (\Fro{})}
+Given a batch update on the original graph, it is likely that only a small subset of vertices in the graph would change their community membership. Selection of the appropriate set of affected vertices to be processed (that are likely to change their community), in addition to the overhead of finding them, plays a significant role in the overall accuracy and efficiency of a dynamic batch parallel algorithm. Too small a subset may result in poor-quality communities, while a too-large subset will increase computation time. However, the Naive-dynamic (ND) approach processes all the vertices, while the Delta-screening (DS) approach generally overestimates the set of affected vertices and has a high overhead. Our proposed Dynamic Frontier (DF) approach addresses these issues.
+
+
+
+
+\subsection{Our Dynamic Frontier (DF) approach}
 \label{sec:frontier}
 
-\input{src/fig-dynamic-approaches}
+We now explain the \textit{Dynamic Frontier} approach. Consider a batch update consisting of edge deletions $(i, j, w) \in \Delta^{t-}$ and insertions $(i, j, w) \in \Delta^{t+}$, both shown with dotted lines, with respect to a single source vertex $i$, in Figure \ref{fig:about-cases--frontier}. At the start of the community detection algorithm, we initialize the community membership of each vertex to that obtained in the previous snapshot of the graph.
+
+\input{src/fig-about-cases}
 \input{src/fig-frontier-example}
 
-Given a batch update on the original graph, it is likely that only a small subset of vertices in the graph would change their community membership. Selection of the appropriate set of affected vertices to be processed (that are likely to change their community), in addition to the overhead of finding them, plays a significant role in the overall accuracy and efficiency of a dynamic batch parallel algorithm. Too small a subset may result in poor-quality communities, while a too-large subset will increase computation time. However, \Nai{} processes all the vertices, while \Del{} generally overestimates the set of affected vertices and has a high overhead. Our proposed \textit{Dynamic Frontier} approach (which we from here on refer to as \Fro{}) addresses these issues.
+\paragraph{Initial marking of affected vertices upon edge deletion/insertion}
 
-
-\subsubsection{Explanation of the approach}
-
-We now explain \Fro{}. Consider a batch update consisting of edge deletions $(i, j) \in \Delta^{t-}$ and insertions $(i, j, w) \in \Delta^{t+}$, shown with double-dashed lines and double-solid lines respectively, with respect to a single source vertex $i$, in Figure \ref{fig:dynamic-approaches}. At the start of the community detection algorithm, we initialize the community membership of each vertex to that obtained in the previous snapshot of the graph.
-
-\paragraph{Initial marking of affected vertices on edge deletion/insertion}
-
-For edge deletions between vertices belonging to the same community and edge insertions between vertices belonging to different communities, we mark the source vertex $i$ as affected, as shown with vertices highlighted in yellow, in Figure \ref{fig:dynamic-approaches}. Note that batch updates are undirected, so we effectively mark both the endpoints $i$ and $j$. Edge deletions between vertices lying across communities and edge insertions for vertices lying within the same community are ignored (for reasons stated before).
+For edge deletions between vertices belonging to the same community and edge insertions between vertices belonging to different communities, we mark the source vertex $i$ as affected, as shown with vertices highlighted in yellow, in Figure \ref{fig:about-cases--frontier}. Note that batch updates are undirected, so we effectively mark both the endpoints $i$ and $j$. Edge deletions between vertices lying across communities and edge insertions for vertices lying within the same community are ignored (for reasons stated before, in Section \ref{sec:delta-screening}).
 
 \paragraph{Incremental marking of affected vertices on vertex migration to another community}
 
-When a vertex $i$ changes its community during the community detection algorithm (shown with an arrow, with the direction indicating the migration of source vertex $i$ from its previous community to another new community), we mark all its neighbor vertices $j \in J_i$ as affected, as shown if Figure \ref{fig:dynamic-approaches} (highlighted in yellow), and mark $i$ as not affected. To minimize unnecessary computation, we also mark an affected vertex $i$ as not affected even if  $i$ does not change its community. We call this as the vertex pruning optimization. The process is akin to a graph traversal and continues until the communities have converged.
+When a vertex $i$ changes its community during the community detection algorithm (shown by moving $i$ from its original community in the center to its new community on the right), we mark all its neighbor vertices $j \in J_i$ as affected, as shown in Figure \ref{fig:about-cases--frontier} (highlighted in yellow), and mark $i$ as not affected. If $i$ does not change its community, it is also marked as unaffected --- this is known as vertex pruning optimization \cite{com-ozaki16, com-ryu16, com-shi21, com-zhang21}. The process is akin to a graph traversal and continues until the community assignments of the vertices have converged.
 
 \paragraph{Application to the first pass of Louvain algorithm}
 
-We apply \Fro{} to the first pass of \Lou{} algorithm (see Line \ref{alg:louvain--remark-pass} in Algorithm \ref{alg:louvain}), as with \Del{}. In subsequent passes, if the aggregation tolerance condition is not met (Line \ref{alg:louvain--aggregation-tolerance} in Algorithm \ref{alg:louvain}), all super-vertices are marked as affected and processed according to Louvain. This takes less than $14\%$ of total time, so we don't use \Fro{} to find affected super-vertices. The tolerance condition only fails in the case of large batch updates.
+We apply the DF approach to the first pass of Louvain algorithm\ignore{(see line \ref{alg:louvain--remark-pass} in Algorithm \ref{alg:louvain})}, as with the DS approach. In subsequent passes\ignore{, if the aggregation tolerance condition is not met (line \ref{alg:louvain--aggregation-tolerance} in Algorithm \ref{alg:louvain}),} all super-vertices are\ignore{marked as affected and} processed, according to the Louvain algorithm. This takes less than $15\%$ of total time, on average, so we don't use the DF approach to find affected super-vertices.\ignore{The tolerance condition only fails in the case of large batch updates.} The psuedocode for our parallel DF Louvain is given in Algorithm \ref{alg:frontier}, with its explanation in Section \ref{sec:our-frontier}. Similar to our parallel ND/DS Louvain, it utilizes\ignore{weighted-degrees of vertices and total edge weights of communities as} auxiliary information.
 
 
-\subsubsection{A simple example}
+\subsubsection{An example of DF approach}
 
-Figure \ref{fig:frontier-example} shows an example of \Fro{}.
+See Figure \ref{fig:frontier-example}\ignore{shows an example of our DF approach}.
 
 \paragraph{Initial communities}
 
-The original graph comprises a total of $16$ vertices, which are divided into three communities, distinguished by the border colors of \textit{red}, \textit{green}, and \textit{blue} (see Figure \ref{fig:frontier-example-01}). This community membership information of each vertex could have been obtained by executing either the static or dynamic version of the \Lou{}/\LPA{} algorithm.
+The original graph consists of $16$ vertices, which are divided into three communities, distinguished by the border colors of \textit{red}, \textit{green}, and \textit{blue} (see Figure \ref{fig:frontier-example-01}). This community membership\ignore{information} of each vertex could have been obtained by executing either the static or dynamic version of Louvain algorithm.
 
-\paragraph{Batch update and Marking affected (initial)}
+\paragraph{Batch update and marking affected (initial)}
 
-Subsequently a batch update is applied to the original graph (see Figure \ref{fig:frontier-example-03}), involving the deletion of an edge between vertices $1$ and $2$, and the insertion of an edge between vertices $4$ and $12$. Following the batch update, we perform the initial step of \Fro{}, marking endpoints $1$, $2$, $4$, and $12$ as affected. At this point, we are ready to execute the first iteration of a community detection algorithm.
+Subsequently a batch update is applied to the original graph (see Figure \ref{fig:frontier-example-03}), involving and edge deletion between vertices $1$ and $2$, and an insertion vertices $4$ and $12$. Following the batch update, we perform the initial step of the DF approach, marking endpoints $1$, $2$, $4$, and $12$ as affected. Now, we are ready to execute the first iteration of Louvain algorithm.
 
 \paragraph{After first iteration}
 
-During the first iteration (see Figure \ref{fig:frontier-example-04}), the community membership of vertex $2$ changes from \textit{red} to \textit{green} because it exhibits stronger connections with vertices in the \textit{green} community. In response to this change, the \Fro{} incrementally marks the neighboring vertices of $2$ as affected, specifically vertices $8$ and $10$. Vertex $2$ is no longer marked as affected due to pruning.
+During the first iteration (see Figure \ref{fig:frontier-example-04}), the community membership of vertex $2$ changes from \textit{red} to \textit{green} because it exhibits stronger connections with vertices in the \textit{green} community. In response to this change, the DF approach incrementally marks the neighboring vertices of $2$ as affected, specifically vertices $8$ and $10$. Vertex $2$ is no longer\ignore{marked as} affected due to pruning.
 
 \paragraph{After second iteration}
 
@@ -46,39 +46,37 @@ Let us now consider the second iteration (see Figure \ref{fig:frontier-example-0
 
 \paragraph{Communities converged}
 
-In the subsequent iteration (see Figure \ref{fig:frontier-example-06}), no other vertices have a strong enough reason to change their community membership. At this point, when employing \Lou{}, the aggregation phase commences consolidating communities into super-vertices to prepare for the subsequent pass of the algorithm. However, when employing the \LPA{}, this marks the conclusion of the algorithm.
+In the subsequent iteration (see Figure \ref{fig:frontier-example-06}), no other vertices have a strong enough reason to change their community membership. At this point\ignore{, when employing the Louvain algorithm}, the aggregation phase commences, consolidating communities into super-vertices to prepare for the subsequent pass of Louvain algorithm.
 
-\input{src/alg-louvain}
+
+
+
+\subsection{Utilizing Auxiliary information}
+\label{sec:auxiliary}
+
+We note that computing the weighted-degree of each vertex $K^t$ and the total edge weight of each community $\Sigma^t$ incurs considerable runtime, in comparison to the time required for the local-moving and aggregation phases of the Louvain algorithm\ignore{to converge, especially for small batch updates}. It would be more efficient to incrementally update the previous weighted-degrees of vertices $K^{t-1}$ and total edge weights of communities $\Sigma^{t-1}$ by taking into account edge deletions $\Delta^{t-}$ and insertions $\Delta^{t+}$ within the batch update, instead of recomputing from scratch. We refer to $K^t$ and $\Sigma^t$ (and $K^{t-1}$, $\Sigma^{t-1}$) as auxiliary information as they must be maintained by the dynamic algorithm, but do not represent the output of the algorithm. Figure \ref{fig:about-auxiliary} illustrates this concept.
+
+In Figure \ref{fig:adjust-auxiliary}, we present the mean speedup observed for ND, DS, and DF Louvain when making use of auxiliary information $K^{t-1}$ and $\Sigma^{t-1}$, in contrast to the same dynamic algorithm when calculating from scratch. This is done on graphs from Table \ref{tab:dataset-large} with random batch updates of size $10^{-7} |E|$ to $0.1 |E|$, consisting of $80\%$ edge insertions and $20\%$ edge deletions, to simulate realistic dynamic graph updates. Results indicate that employing auxiliary information enables ND, DS, and DF Louvain to achieve average speedups of $11.8\times$, $2.9\times$, and $48.5\times$, respectively. Moreover, DF Louvain achieves remarkable speedups, reaching up to $107\times$ for smaller batch sizes. Incrementally updating $K^{t-1}$ and $\Sigma^{t-1}$ to obtain $K^t$ and $\Sigma^t$, thus, significantly speeds up DF Louvain. To the best of our knowledge, none of the existing dynamic algorithms for Louvain algorithm make such use of auxiliary information.
+
+\input{src/fig-about-auxiliary}
 \input{src/fig-adjust-auxiliary}
 
 
 
 
-\subsection{Our Dynamic Frontier based Louvain (\FroLou{}, Algorithm \ref{alg:louvain})}
-\label{sec:dynamic-louvain}
+\subsection{Our DF Louvain implementation}
+\label{sec:our-frontier}
 
-We show how to apply our \textit{Dynamic Frontier} approach (\Fro{}) to \Lou{} in Algorithm \ref{alg:louvain} (which we call \FroLou{}). We take as input the previous snapshot of the graph $G^{t-1}$, the previous community membership of each vertex $C^{t-1}$, and the batch update consisting of edge deletions $\Delta^{t-}$ and insertions $\Delta^{t+}$ in Line \ref{alg:louvain--main-begin}. First, in Lines \ref{alg:louvain--restart-begin}-\ref{alg:louvain--restart-end}, we check if we should use \StaLou{} to maintain the quality of communities (explained in Section \ref{sec:restart}). Then, in Lines \ref{alg:louvain--mark-begin}-\ref{alg:louvain--mark-end}, based on \Fro{}, we mark the initial set of vertices as affected. In Lines \ref{alg:louvain--membership} and \ref{alg:louvain--super-membership-begin}-\ref{alg:louvain--super-membership-end}, we initialize the community membership of each vertex in the graph $G^t$, and each super-vertex in the aggregated graph $G'$ (in the first pass, this is the same as the input graph $G^t$).
+Algorithm \ref{alg:frontier} shows the psuedocode of our Parallel Dynamic Frontier (DF) Louvain. It takes as input the previous $G^{t-1}$ and current graph snapshot $G^t$, edge deletions $\Delta^{t-}$ and insertions $\Delta^{t+}$ in the batch update, the previous community assignments $C^{t-1}$ for each vertex, the previous weighted-degrees $K^{t-1}$ of vertices, and the previous total edge weights $\Sigma^{t-1}$ of communities. It returns the updated community memberships $C^t$ of vertices, weighted-degrees $K^t$, and total edge weights $\Sigma^t$ of communities.
 
-For each pass (Lines \ref{alg:louvain--passes-begin}-\ref{alg:louvain--passes-end}), we perform the \textit{local-moving} phase of \Lou{} in Line \ref{alg:louvain--local-move}. If the community labels converge after one iteration, we terminate the algorithm (Line \ref{alg:louvain--globally-converged}). In Line \ref{alg:louvain--renumber}, we renumber the community-ids. This renumbering helps generate the aggregated graph $G'$ in the Compressed Sparse Row (CSR) format and counting the number of communities. In Line \ref{alg:louvain--lookup}, we update the community membership of each vertex $C$ based on the community membership of each super-vertex, such that we refer to the top-level hierarchy of the dendrogram as the final result.
+\input{src/alg-frontier}
 
-Next, at Line \ref{alg:louvain--aggregation-tolerance}, we check whether only a small portion of communities have merged together. To do this, we calculate the ratio of the number of communities after the \textit{local-moving} phase $|\Gamma|$ to the original number of communities $|\Gamma_{old}|$. If this ratio $|\Gamma|/|\Gamma_{old}|$ is less than a specific value called the aggregation tolerance ($\tau_{agg}$, whose optimal value is measured and mentioned in Section \ref{sec:louvain}), it means that the merging has been minimal. In such a situation, we stop the algorithm to avoid the computationally expensive \textit{aggregation} phase, as it doesn't provide significant benefits. However, if a sufficiently large number of communities have merged together, we proceed with the \textit{aggregation} phase and obtain the aggregated graph $G'$. This graph is stored in CSR format.
-
-Next, we perform the threshold scaling optimization \cite{com-naim17}, i.e., we reduce the tolerance $\tau$ by a tolerance drop factor of \verb|TOLERANCE_DROP|. This optimization helps minimize the number of iterations performed in the local-moving phase of \Lou{}. It improves performance with little sacrifice in the quality of communities obtained.
-
-We now discuss the \textit{local-moving} phase of \Lou{}. First, in Lines \ref{alg:louvain--edge-weigths-begin}-\ref{alg:louvain--edge-weigths-end}, we calculate the total edge weights linked to each vertex $K'$ and the total edge weights linked to each community $\Sigma'$. For each iteration (Lines \ref{alg:louvain--iterations-begin}-\ref{alg:louvain--iterations-end}), and for each affected vertex $i$ in the graph $G'$, we use per-thread collision-free hashtables to obtain the best community linked to each vertex $c^*$, as well as the associated delta-modularity (highest) $\delta Q^*$ in parallel using Equation \ref{eq:delta-modularity} (Lines \ref{alg:louvain--best-community-begin}-\ref{alg:louvain--best-community-end}). If the best community $c^*$ is different from the original community membership $C'[i]$ of vertex $i$ (Line \ref{alg:louvain--best-community-same}), we update the community membership of the vertex and atomically update the total edge weights linked to each community in Lines \ref{alg:louvain--perform-move-begin}-\ref{alg:louvain--perform-move-end}. In addition, if this is the first pass of \Lou{} (Line \ref{alg:louvain--remark-pass}), based on \Fro{}, we mark the neighbors of vertex $i$ as affected in Line \ref{alg:louvain--remark}. To minimize unnecessary computation, we also mark vertex $i$ as not affected (whether or not $i$ changes its community) as part of vertex pruning optimization in Line \ref{alg:louvain--prune}. At the end of each iteration, if the total delta-modularity across all vertices $\Delta Q$ is less than the specified tolerance $\tau$, we terminate the local-moving phase (Line \ref{alg:louvain--locally-converged}). We prove the correctness of \FroLou{} in Section \ref{sec:louvain-correctness}.
+In the algorithm, we first identify an initial set of affected vertices, whose communities may directly change due to the batch updates, by marking them in the flag vector $\delta V$. We do this by marking the endpoints of edge deletions $\Delta^{t-}$ which lie in the same community (lines \ref{alg:frontier--loopdel-begin}-\ref{alg:frontier--loopdel-end}), and by marking the endpoints of edge insertions $\Delta^{t+}$ which lie in disjoint communities (lines \ref{alg:frontier--loopins-begin}-\ref{alg:frontier--loopins-end}). We then define three lambda functions for the Louvain algorithm, \texttt{isAffected()} (lines \ref{alg:frontier--isaff-begin}-\ref{alg:frontier--isaff-end}), \texttt{inAffectedRange()} (lines \ref{alg:frontier--isaffrng-begin}-\ref{alg:frontier--isaffrng-end}), and \texttt{onChange()} (lines \ref{alg:frontier--onchg-begin}-\ref{alg:frontier--onchg-end}), which indicate that a set of vertices are (initially) marked as affected, that all vertices in the graph can be incrementally marked as affected, and that the neighbors of a vertex are marked as affected if it changes its community membership, respectively. Note that the set of affected vertices will expand automatically due to vertex pruning optimization used in our Parallel Louvain algorithm (Algorithm \ref{alg:louvain}). Thus, \texttt{onChange()} reflects what the DF approach would do in the absence of vertex pruning. Further, unlike existing approaches, we leverage $K^{t-1}$ and $\Sigma^{t-1}$, alongside the batch updates $\Delta^{t-}$ and $\Delta^{t+}$, to efficiently compute $K^t$ and $\Sigma^t$ required for the local-moving phase of the Louvain algorithm (line \ref{alg:frontier--auxiliary}). These lambda functions and the total vertex/edge weights are then utilized to execute the Louvain algorithm and obtain the updated community assignments $C^t$ (line \ref{alg:frontier--louvain}). Finally, we return $C^t$, alongside $K^t$ and $\Sigma^t$\ignore{, serving as the updated auxiliary information} (line \ref{alg:frontier--return}).
 
 
 
 
-\subsection{Maintaining quality across batches}
-\label{sec:restart}
+\ignore{\subsection{Time and Space complexity}}
+\ignore{\label{sec:complexity}}
 
-In our experiments with continuous batch updates of edge insertions of size $10^{-3} |E|$, we find that the quality of communities obtained using the \DelLou{} and \FroLou{} starts to drop (compared to \StaLou{}) by $48\%$ (rapid decline) and $5.7\%$ respectively after around $1300$ batches of updates. The same happens for \FroHyb{} by $10\%$ after around $600$ updates. Therefore, we conservatively use a \verb|RESTART_LOUVAIN| of $1000$, and a \verb|RESTART_HYBRID| of $500$ (see Lines \ref{alg:louvain--restart-begin}-\ref{alg:louvain--restart-end} in Algorithm \ref{alg:louvain}, and Lines \ref{alg:hybrid--restart-begin}-\ref{alg:hybrid--restart-end} in Algorithm \ref{alg:hybrid}). As the lines show, we run \StaLou{} once for $1000$/$500$ batches of updates to maintain the quality of communities across multiple batch updates and correct the error introduced. We adjust our reported timings by amortizing its cost.
-
-
-
-
-\subsection{Time and Space complexity}
-\label{sec:complexity}
-
-To analyze the time complexity of our algorithms, we use $N_B$ to denote the number of vertices marked as affected (which is dependent on the size and nature of batch update) by the dynamic algorithm on a batch $B$ of edge updates, use $M_B$ to denote the number of edges with one endpoint in $N_B$, and $K$ to denote the total number of iterations performed. Then the time complexity of Algorithms \ref{alg:louvain}-\ref{alg:hybrid} is $O(K M_B)$. In the worst case, the time complexity of our algorithms would be the same as that of the respective static algorithms, i.e., $O(KM)$. The space complexity of our algorithms is the same as that of the static algorithms, i.e., $O(N + M)$.
+\ignore{To discuss the time complexity of DF Louvain, we use $N_B$ to denote the number of vertices marked as affected (which is dependent on the size and nature of batch update) by it on a batch $B$ of edge updates, $M_B$ to denote the number of edges with one endpoint in $N_B$, and $K$ to denote the total number of iterations performed. Then, the time complexity of DF Louvain is $O(K M_B)$.\ignore{In the worst case, the time complexity of our algorithms would be the same as that of the respective static algorithms, i.e., $O(KM)$.} The space complexity of DF Louvain is the same as that of Static Louvain, i.e., $O(N + M)$.}

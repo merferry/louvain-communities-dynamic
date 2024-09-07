@@ -4,136 +4,92 @@
 \subsubsection{System}
 \label{sec:system}
 
-For our experiments, we use a server that has an x86-based 64-bit AMD EPYC-7742 processor. This processor has a clock frequency of 2.25 GHz and 512 GB of DDR4 system memory. Each core has an L1 cache of 4 MB, an L2 cache of 32 MB, and a shared L3 cache of 256 MB. The machine runs on Ubuntu 20.04. We use GCC 9.4 and OpenMP 5.0 \cite{openmp18}.
+For our experiments, we use a server that has an x86-based 64 core AMD EPYC-7742 processor. This processor has a clock frequency of $2.25$ GHz and $512$ GB of DDR4 system memory. Each core has an L1 cache of $4$ MB, an L2 cache of $32$ MB, and a shared L3 cache of $256$ MB. The machine uses Ubuntu 20.04.
 
 
 \subsubsection{Configuration}
 \label{sec:configuration}
 
-We use 32-bit unsigned integer for vertex ids, 32-bit floating point for edge weights, but use 64-bit floating point for hashtable values, total edge weight, modularity calculation, and all places where performing an aggregation/sum of floating point values. Unless mentioned otherwise, we execute all parallel implementations with a default of $64$ threads (to match the number of cores available on the system).
-
-\input{src/tab-dataset}
-
-
-\subsubsection{Reproducibility}
-\label{sec:reproducibilty}
-
-All our results are reproducible. The source code for the experiments reported in this paper along with necessary scripts for obtaining the datasets and compiling the software is available at \url{https://bit.ly/hipc23-174}. 
+We use 32-bit unsigned integer for vertex IDs, 32-bit floating point for edge weights, but use 64-bit floating point for hashtable values, total edge weight, modularity calculation, and all places where performing an aggregation/sum of floating point values. Affected vertices are represented with an 8-bit integer vector. Computing the weighted degree of each vertex, the local moving phase, and aggregating the edges for the super-vertex graph, employ OpenMP's \textit{dynamic schedule} with a chunk size of $2048$ for dynamic workload balancing among threads. We set the iteration tolerance $\tau$ to $10^{-2}$, the tolerance drop per pass $TOLERANCE\_DECLINE\_FACTOR$ to $10$ (threshold-scaling optimization), maximum number of iterations per pass $MAX\_ITERATI$ $ONS$ to $20$, and the maximum number of passes $MAX\_PASSES$ to $10$ \cite{sahu2023gvelouvain}. Further, we set the aggregation tolerance $\tau_{agg}$ to $0.8$ for large (static) graphs with generated random batch updates, but keep it disabled, i.e., set $\tau_{agg}$ to $1$, for real-world dynamic graphs. Unless mentioned otherwise, we execute all parallel implementations with a default of $64$ threads (to match the number of cores available on the system). We use GCC 9.4 and OpenMP 5.0 \cite{openmp18} for compilation.
 
 
 \subsubsection{Dataset}
 \label{sec:dataset}
 
-Table \ref{tab:dataset} shows the graphs we use in our experiments. All of them are obtained from the SuiteSparse Matrix Collection \cite{suite19}. The number of vertices in the graphs varies from $3.07$ to $214$ million, and the number of edges varies from $25.4$ million to $3.80$ billion. We ensure that all edges are undirected and weighted with a default weight of $1$.
+To experiment with real-world dynamic graphs, we employ five temporal networks sourced from the Stanford Large Network Dataset Collection \cite{snapnets}, detailed in Table \ref{tab:dataset}. Here, the number of vertices range from $24.8$ thousand to $2.60$ million, temporal edges from $507$ thousand to $63.4$ million, and static edges from $240$ thousand to $36.2$ million. For experiments involving large static graphs with random batch updates, we utilize $12$ graphs as listed in Table \ref{tab:dataset-large}, obtained from the SuiteSparse Matrix Collection \cite{suite19}. Here, the number of vertices in the graphs varies from $3.07$ to $214$ million, and the number of edges varies from $25.4$ million to $3.80$ billion. With each graph, we ensure that all edges are undirected and weighted with a default weight of $1$.
+
+\input{src/tab-dataset}
+\input{src/tab-dataset-large}
 
 
 \subsubsection{Batch generation}
-\label{sec:batch-update}
+\label{sec:batch-generation}
 
-We take a base graph from the dataset and generate a random batch update \cite{com-zarayeneh21} consisting of an equal mix of edge deletions and insertions \cite{com-chong13}, each with an edge weight of $1$. All batch updates are undirected, i.e., for every edge insertion $(i, j, w)$ in the batch update, the edge $(j, i, w)$ is also a part of the batch update. For simplicity, we generate these edges such that the selection of each vertex (as endpoint) is equally probable, and we do not add any new vertices to the graph. Testing with batches having other distributions is part of our future work.
+For experiments involving real-world dynamic graphs, we first load $90\%$ of the temporal edges of each graph from Table \ref{tab:dataset}, and ensure that all edges are weighted with a default weight of $1$, and that they are undirected by adding the reverse edges. Subsequently, we load $B$ edges in $100$ batch updates. Here, $B$ denotes the desired batch size, specified as a fraction of the total number of temporal edges $|E_T|$ in the graph, and ensure that the batch update is undirected. For experiments on large graphs with random batch updates, we take each base graph from Table \ref{tab:dataset-large} and generate random batch updates \cite{com-zarayeneh21} comprising an $80\% : 20\%$ mix of edge insertions and deletions to emulate realistic batch updates, each with an edge weight of $1$. To prepare the set of edges for insertion, we select vertex pairs with equal probability. For edge deletions, we remove the desired number of existing edges, with equal probability of selecting each edge. To simplify, we ensure no new vertices are added or removed from the graph. The batch size is measured as a fraction of edges in the original graph, ranging from $10^{-7}$ to $0.1$ (i.e., $10^{-7}|E|$ to $0.1|E|$), with multiple batches generated for each size for averaging. For a billion-edge graph, this amounts to a batch size of $100$ to $100$ million edges.\ignore{Keep in mind that dynamic graph algorithms are helpful for small batch sizes in interactive applications. For large batches, it is usually more efficient to run the static algorithm.} All batch updates are undirected, i.e., for every edge insertion $(i, j, w)$ in the batch update, the edge $(j, i, w)$ is also a part of the batch update. We employ five distinct random batch updates for each batch size, and report average across these runs in our experiments.
 
+
+\subsubsection{Measurement}
+\label{sec:measurement}
+
+We evaluate the runtime of each approach on the entire updated graph, including the local-moving phase, aggregation phase, the initial and incremental marking of affected vertices, convergence detection, and all the necessary intermediary steps, but excluding only the initial memory allocation/deallocation time. We assume that the total edge weight of the graphs is known, and can be tracked upon each batch update.
+
+\input{src/fig-temporal-summary}
 \input{src/fig-8020-runtime}
 \input{src/fig-8020-modularity}
 
-\paragraph{Adjusting batch size}
 
-For all dynamic graph-based experiments, we modify the batch size as a fraction of the total number of edges in the original (undirected) graph from $10^{-7}$ to $0.1$ (i.e., $10^{-7}|E|$ to $0.1|E|$). For a billion-edge graph, this amounts to a batch size of $100$ to $100$ million edges. Keep in mind that dynamic graph algorithms are helpful for small batch sizes in interactive applications. For large batches, it is usually more efficient to run the static algorithm.
+\ignore{\subsubsection{Determining optimality of result}}
+\ignore{\label{sec:evaluation--optimality}}
 
-\paragraph{Minimizing measurement noise}
-
-We employ $5$ distinct random batch updates for each batch size and report average across these runs in our experiments.
-
-
-\subsubsection{Determining optimality of result}
-\label{sec:evaluation--optimality}
-
-Community detection is an NP-hard problem and existing polynomial algorithms are \textit{heuristic}. We study correctness in terms of \textit{modularity score} of communities identified (higher is better), similar to previous works in the area \cite{com-traag19, com-zarayeneh21}. As Figures \ref{fig:louvain}-\ref{fig:hybrid} show, modularity of communities detected by our proposed dynamic algorithms is close to the modularity of communities detected by corresponding static algorithms.
+\ignore{Community detection is an NP-hard problem and existing polynomial algorithms are \textit{heuristic}. We study correctness in terms of \textit{modularity score} of communities identified (higher is better), similar to previous works in the area \cite{com-traag19, com-zarayeneh21}. As Figures \ref{fig:louvain}-\ref{fig:hybrid} show, modularity of communities detected by our proposed dynamic algorithms is close to the modularity of communities detected by corresponding static algorithms.}
 
 \input{src/fig-measure-affected}
-\input{src/fig-measure-stability}
+\ignore{\input{src/fig-measure-stability}}
 
 
 
 
-\subsection{Performance of Dynamic Frontier Louvain (\FroLou{}, Algorithm \ref{alg:louvain})}
-\label{sec:louvain-evaluation}
+\subsection{Performance Comparison}
+\label{sec:performance-comparison}
 
-\subsubsection{Overall Performance}
+\subsubsection{Results on real-world dynamic graphs}
 
-We first study the performance of \FroLou{} on batch updates of size $10^{-7} |E|$ to $0.1 |E|$, and compare it with \StaLou{}, \NaiLou{}, and \DelLou{}. The work of Zarayeneh et al. \cite{com-zarayeneh21} demonstrates improved performance of \textit{$\Delta$-screening} compared to \textit{Dynamo} \cite{com-zhuang19} and \textit{Batch} \cite{com-chong13}. Thus, we limit our comparison to \Del{}. When executing \FroLou{} and \DelLou{}, we reinitialize the community memberships every \verb|RESTART_LOUVAIN| batches with the community labels obtained via \StaLou{} (see Section \ref{sec:restart}). As mentioned in Section \ref{sec:batch-update}, we generate $5$ different random batch updates for each batch size to minimize measurement noise.
+We now compare the performance of our Parallel Dynamic Frontier (DF) Louvain with our parallel implementation of Static, Naive-dynamic (ND), and Delta-screening (DS) Louvain on real-world dynamic graphs from Table \ref{tab:dataset}. These evaluations are conducted on batch updates of size $10^{-5}|E_T|$ to $10^{-3}|E_T|$ in multiples of $10$. For each batch size, as mentioned in Section \ref{sec:batch-generation}, we load $90\%$ of the graph, add reverse edges to make all edges in the graph undirected, and then load $B$ edges (where $B$ is the batch size) consecutively in $100$ batch updates. The work of Zarayeneh et al. \cite{com-zarayeneh21} demonstrates improved performance of the DS approach compared to DynaMo \cite{com-zhuang19} and Batch \cite{com-chong13}. Thus, we limit our comparison to DS Louvain. Figure \ref{fig:temporal-summary--runtime-overall} displays the overall runtime of each approach across all graphs for each batch size, while Figure \ref{fig:temporal-summary--modularity-overall} illustrates the overall modularity of obtained communities. Additionally, Figures \ref{fig:temporal-summary--runtime-graph} and \ref{fig:temporal-summary--modularity-graph} present the mean runtime and modularity of communities obtained with the approaches on each dynamic graph in the dataset. Finally, Figures \ref{fig:temporal-sx-mathoverflow}, \ref{fig:temporal-sx-askubuntu}, \ref{fig:temporal-sx-superuser}, \ref{fig:temporal-wiki-talk-temporal}, and \ref{fig:temporal-sx-stackoverflow} show the runtime and modularity of communities obtained with Static, ND, DS, and DF Louvain on each dynamic graph in Table \ref{tab:dataset}, upon each consecutive batch update.
 
-Figure \ref{fig:louvain--am} shows the average results of the experiment. We observe the following from Figure \ref{fig:louvain--am}. The modularity of communities obtained by all the dynamic approaches is nearly identical. \FroLou{} converges the fastest with an average speedup of $1.5\times$ over \NaiLou{}. On small batch updates, atomics hinder the speedup. This isn't a reflection of our approach's inefficiency but rather a challenge posed by the parallel implementation of Louvain algorithm. As the batch size increases, the number of vertices marked as affected by \FroLou{} increases. This results in an increase in the time taken by \FroLou{} as the batch size increases. Further, as Figure \ref{fig:louvain--all} shows, dynamic approaches significantly outperform \StaLou{} on \textit{social networks}, \textit{road networks}, and \textit{k-mer protein graphs} (which do not have a dense community structure, or have a low $|E|/|V|$ ratio).
-
-\paragraph{Performance of Dynamic $\Delta$-screening (\DelLou{})}
-
-We note that \DelLou{} does not perform better than \NaiLou{}. This is because it tends to mark a large fraction of the vertices as affected, even for small batch updates. Our experiments on the graphs in Table \ref{tab:dataset} indicate that compared to the \FroLou{}, the \DelLou{} marks nearly $44\times$ more vertices as affected on a batch size of $10^{-3} |E|$.
-
-\paragraph{Slowdown of static algorithm}
-
-Uniform batches of insertions/deletions arbitrarily disrupt the original community structure. This results in \StaLou{} needing more iterations to converge.
+Figure \ref{fig:temporal-summary--runtime-overall} shows that DF Louvain is, on average, $268\times$, $195\times$, and $109\times$ faster than Static Louvain on batch updates of size $10^{-5}|E_T|$, $10^{-4}|E_T|$, and $10^{-3}|E_T|$, respectively. In contrast, DS Louvain demonstrates average speedups of $47\times$, $32\times$, and $26\times$ over Static Louvain for batch update sizes of $10^{-5}|E_T|$ to $10^{-3}|E_T|$, while ND Louvain obtains a mean speedup of $25\times$\ignore{over Static Louvain}.\ignore{DF Louvain thus achieves average speedups of $5.7\times$, $6.1\times$, and $4.2\times$ compared to DS Louvain for the same batch updates.} DF Louvain is thus, overall, $179\times$, $7.2\times$, and $5.3\times$ faster than Static, ND, and DS Louvain. This speedup is particularly pronounced on the \textit{sx-superuser} graph, as indicated by Figure \ref{fig:temporal-summary--runtime-graph}. Regarding modularity, Figures \ref{fig:temporal-summary--modularity-overall} and \ref{fig:temporal-summary--modularity-graph} illustrate that DF Louvain generally exhibits slightly lower modularity on average compared to ND and DS Louvain but is on par with the modularity obtained by Static Louvain, except for the \textit{sx-superuser} graph (because it fails to mark certain vertices as affected, likely because they are outlier vertices and were not directly reached from the expanding frontier). This makes the communities obtained with DF Louvain generally acceptable. However, if lower modularity is observed (during intermediate empirical tests), transitioning to our parallel implementation of DS Louvain is advisable. It is also worth noting that ND Louvain produces higher-quality communities than Static Louvain, as it builds upon the community memberships obtained from Static Louvain and further optimizes them (we limit the number of passes for Static Louvain to achieve a large speed gain, even if it means sacrificing some quality).
 
 
-\subsubsection{Comparison with respect to Riedy and Bader \cite{com-riedy13}}
+\subsubsection{Results on large graphs with random batch updates}
 
-Riedy and Bader propose a batch parallel dynamic algorithm for community detection. They compare the run time of their dynamic algorithm to that of a static recomputation. On the graphs \verb|caidaRouterLevel|, \verb|coPapersDBLP|, and \verb|eu-2005|, from \cite{com-riedy13} and at the batch size of $0.1|E|, 0.03|E|,$ and $0.1|E|$ respectively, they report a speedup of $40\times$, $1.08\times$, and $327\times$, respectively, over their corresponding static algorithm performing a full recomputation. On these three graphs and batch sizes, \FroLou{} achieves a speedup of $6.1\times$, $10.9\times$, and $4.2\times$, respectively, compared to a full static recomputation. This might compare unfavorably with the speedups claimed by Riedy and Bader \cite{com-riedy13}. However, note from Section \ref{sec:introduction} that the algorithm of Riedy and Bader \cite{com-riedy13} does not identify cascading changes to communities. In addition, as their source code is not available, we could not do a more direct comparison.
+We also assess the performance of our parallel DF Louvain alongside our parallel implementation of Static, ND, and DS Louvain on large (static) graphs listed in Table \ref{tab:dataset-large}, with randomly generated batch updates. As elaborated in Section \ref{sec:batch-generation}, the batch updates vary in size from $10^{-7}|E|$ to $0.1|E|$ (in multiples of $10$), comprising $80\%$ edge insertions and $20\%$ edge deletions to mimic realistic scenarios. Reverse edges are added with each batch update, to ensure that the graph is undirected. As mentioned in Section \ref{sec:batch-generation}, we generate $5$ different random batch updates for each batch size to minimize measurement noise. Figure \ref{fig:8020-runtime} illustrates the runtime of Static, ND, DS, and DF Louvain, while Figure \ref{fig:8020-modularity} displays the modularity of communities obtained with each approach.
 
+Figure \ref{fig:8020-runtime--mean} illustrates that DF Louvain achieves a mean speedup of $183\times$, $13.8\times$, and $8.7\times$ compared to Static, ND, and DS Louvain, respectively. On a batch update of size $10^{-7}|E|$, DF Louvain is significantly faster, attaining speedups of $540\times$, $39\times$, and $14\times$, with respect to Static, ND, and DS Louvain, respectively. The speedup is particularly pronounced on web graphs, social networks, and protein k-mer graphs, characterized by a large number of vertices (as depicted in Figure \ref{fig:8020-runtime--all}). It may be noted that DS Louvain exhibits slower performance than ND Louvain on large batch updates, i.e., on batch updates of size $0.01|E|$ and $0.1|E|$. This is attributed to the cost of initial marking of affected vertices with DS Louvain --- since the updates are scattered randomly across the graph, DS Louvain ends up marking a significant number of vertices as affected, making it almost equivalent to ND Louvain, but with the added cost of the marking of affected vertices (particularly on web graphs and social networks, characterized by a high average degree and a small diameter). Figures \ref{fig:8020-modularity--mean} and \ref{fig:8020-modularity--all} indicate that DF Louvain obtains communities with the roughly same modularity as Static, ND, and DS Louvain. Hence, for large graphs with random batch updates, DF Louvain is the best dynamic community detection method.
 
-\subsubsection{Stability}
-\label{sec:louvain-stability}
-
-Intuitively, if the graphs $G^t$ and $G^{t'}$ are identical for some $t$ and $t'$, we expect \FroLou{} to produce the same communities for $G^t$ and $G^{t'}$. We refer to this property of a dynamic algorithm as its stability, measured as the percentage of vertices that agree on the community label across two identical graphs. Vertices within weak community structures tend to be unstable, as they may connect to multiple communities with similar strength.
-
-To measure the stability of \NaiLou{}, \DelLou{}, and \FroLou{}, we proceed as follows. Let $G$ be an initial graph. We generate random batch updates of size $10^{-7} |E|$ to $0.1 |E|$ consisting of edge deletions to obtain the graph $G^1$. We then apply each of the above algorithms on $G^1$ to identify the new communities. Subsequently, we create another batch of updates that consists of inserting the edges deleted in the prior time step. This graph, $G^2$, is essentially the original graph $G$. We obtain the community labels of the vertices in the graph $G^2$ by appealing to the dynamic algorithms. Finally, we compare the community label of each vertex in the graphs $G$ and $G^2$. The resulting match in community membership of vertices with \NaiLou{}, \DelLou{}, and \FroLou{} on batch updates of size $10^{-7} |E|$ to $0.1 |E|$ is shown in Figure \ref{fig:louvainrak-stability--louvain}.
-
-From Figure \ref{fig:louvainrak-stability--louvain}, we observe that\NaiLou{} and \DelLou{} have minimum of $99.68\%$ match with the original community memberships across all batch sizes, while \FroLou{} has a minimum of $99.70\%$ match. This indicates that all these algorithms are stable.
+In Figure \ref{fig:8020-runtime}, also note that runtime of Static Louvain increases for larger batch updates. This more likely due to the random batch updates arbitrarily disrupting the original community structure --- which results in Static Louvain needing more iterations to converge --- than due to the increased number of edges in the graph.
 
 
+\subsubsection{Comparison of vertices marked as affected}
+
+Figure \ref{fig:measure-affected--temporal} displays the mean percentage of vertices marked as affected by DS and DF Louvain on real-world dynamic graphs from Table \ref{tab:dataset}, with batch updates of size $10^{-5}|E_T|$ to $10^{-3}|E_T|$ in multiples of $10$ (see Section \ref{sec:batch-generation} for details) --- while Figure \ref{fig:measure-affected--8020} displays the mean percentage of vertices marked as affected by DS and DF Louvain on large (static) graphs with generated random batch updates (consisting of $80\%$ edge insertions and $20\%$ deletions), on batch updates of size $10^{-7}|E|$ to $0.1|E|$. For DS Louvain, the affected vertices are marked at the start of the algorithm, while, for DF Louvain, affected vertices are marked incrementally --- therefore, we count all vertices that were ever flagged as affected with DF Louvain.
+
+Figure \ref{fig:measure-affected--temporal} shows that the proportion of vertices marked as affected by DF Louvain is $990\times$, $11.9\times$, and $11.8\times$ lower than DS Louvain for batch updates of size $10^{-5}|E_T|$, $10^{-4}|E_T|$, and $10^{-3}|E_T|$, respectively. Figure \ref{fig:measure-affected--8020} also paints a similar picture, with significantly fewer vertices being marked as affected by DF Louvain for smaller batch updates (i.e., batch updates of size $10^{-7}|E|$ and $10^{-6}|E|$). Therefore, the performance improvement with DF Louvain can be attributed to both marking fewer vertices as affected, and to the incremental marking of affected vertices. Additionally, it is worth noting that, on real-world dynamic graphs, the fraction of vertices marked as affected is generally low across both approaches. This is likely because updates in such graphs tend to be concentrated in specific regions of the graph\ignore{(not randomly scattered throughout)}.
 
 
-\subsection{Performance of Dynamic Frontier LPA (\FroLPA{}, Algorithm \ref{alg:rak})}
-\label{sec:rak-evaluation}
+\ignore{\subsubsection{Stability}}
+\ignore{\label{sec:stability}}
 
-\subsubsection{Overall Performance}
+\ignore{Intuitively, if the graphs $G^t$ and $G^{t'}$ are identical for some $t$ and $t'$, we expect DF Louvain to produce the same communities for $G^t$ and $G^{t'}$. We refer to this property of a dynamic algorithm as its stability, measured as the percentage of vertices that agree on the community label across two identical graphs. Vertices within weak community structures tend to be unstable, as they may connect to multiple communities with similar strength.}
 
-In this experiment, we study the performance of \FroLPA{} with batch updates of size ranging from $10^{-7} |E|$ to $0.1 |E|$, and compare it to \StaLPA{}, \NaiLPA{}, and \DelLPA{}. Unlike \Lou{}, none of the \LPA{} based dynamic approaches require re-initialization of communities every \verb|RESTART_LOUVAIN| batches. As discussed in Section \ref{sec:batch-update}, we employ $5$ distinct random batch updates for every batch size in order to minimize measurement noise.
+\ignore{To measure the stability of ND, DS, and DF Louvain, we proceed as follows. Let $G$ be an initial graph. We generate random batch updates of size $10^{-7} |E|$ to $0.1 |E|$ consisting of edge deletions to obtain the graph $G^1$. We then apply each of the above algorithms on $G^1$ to identify the new communities. Subsequently, we create another batch of updates that consists of inserting the edges deleted in the prior time step. This graph, $G^2$, is essentially the original graph $G$. We obtain the community labels of the vertices in the graph $G^2$ by appealing to the dynamic algorithms. Finally, we compare the community label of each vertex in the graphs $G$ and $G^2$. The resulting match in community membership of vertices with ND, DS, and DF Louvain on batch updates of size $10^{-7} |E|$ to $0.1 |E|$ is shown in Figure \ref{fig:louvainrak-stability--louvain}.}
 
-Figure \ref{fig:rak--am} shows the average result of the experiment. While all approaches obtain communities of equivalent modularity, \FroLPA{} converges on average $10.0\times$ faster than \NaiLPA{} from a batch size of $10^{-7} |E|$ up to $0.01 |E|$. As shown in Figure \ref{fig:rak--all}, it has good performance on \textit{web graphs} and \textit{social networks} (graphs with high $|E|/|V|$ ratio). Note, however, that the quality of communities obtained with \LPA{} is not on par with \Lou{}.
+\ignore{From Figure \ref{fig:louvainrak-stability--louvain}, we observe that ND and DS Louvain have minimum of $99.68\%$ match with the original community memberships across all batch sizes, while DF Louvain has a minimum of $99.70\%$ match. This indicates that all these algorithms are stable.}
 
-\paragraph{Performance of Dynamic $\Delta$-screening}
-
-Further, we note that \DelLPA{} generally fails to perform better than \NaiLPA{}. This is because it tends to mark a large fraction of the vertices as affected (see Figure \ref{fig:louvainrak-affected--rak}), and has a high associated overhead.
-
-\paragraph{Slowdown of static algorithm}
-
-As mentioned in Section \ref{sec:louvain-evaluation}, the uniform batches of insertions/deletions arbitrarily disrupt the original community structure, necessitating more iterations for \StaLPA{} to converge.
+\input{src/fig-strong-scaling}
 
 
-\subsubsection{Stability}
-\label{sec:rak-stability}
+\subsubsection{Strong scaling}
+\label{sec:strong-scaling}
 
-Just as in Section \ref{sec:louvain-stability}, we study the stability of \NaiLPA{}, \DelLPA{}, and \FroLPA{} on random batch updates of size $10^{-7} |E|$ to $0.1 |E|$. From the results, shown in Figure \ref{fig:louvainrak-stability--rak}, we observe that \NaiLPA{} and \DelLPA{} have minimum of $95.53\%$ match with the original community memberships across all batch sizes, while \FroLPA{} has a minimum of $95.75\%$ match. This indicates that \FroLPA{} is stable.
+Finally, we study the strong-scaling behavior of DF Louvain on large (static) graphs, with generated random batch updates of size $10^{-7}|E|$ to $0.1|E|$. The speedup of DF Louvain is measured as the number of threads increases from $1$ to $64$ in multiples of $2$, relative to single-threaded execution. This process is repeated for each graph in the dataset (refer to Table \ref{tab:dataset}), and the results are averaged using geometric mean.
 
-
-
-
-\subsection{Performance of Dynamic Frontier Hybrid Louvain-LPA (\FroHyb{}, Algorithm \ref{alg:hybrid})}
-\label{sec:hybrid-evaluation}
-
-\subsubsection{Overall Performance}
-
-We now study the performance of \FroHyb{}, which uses \StaLou{} every \verb|RESTART_HYBRID| batches and uses \FroLPA{} for updating communities for the remainder batches (see Sections \ref{sec:dynamic-hybrid} and \ref{sec:restart}). We do this on batch updates of size $10^{-7} |E|$ to $0.1 |E|$, and compare it with \FroLou{} and \FroLPA{} (Algorithms \ref{alg:louvain} and \ref{alg:rak}). As stated in Section \ref{sec:batch-update}, we employ five distinct random batch updates for every batch size to minimize measurement noise.
-
-The average modularity of communities obtained by \FroHyb{} is nearly identical to that obtained by \FroLou{}, as shown in Figure \ref{fig:hybrid--am}, while obtaining a mean speedup of $7.5\times$ across batch sizes of $10^{-7} |E|$ to $0.1 |E|$. \FroHyb{} is thus an efficient and high-quality dynamic community detection approach, especially of \textit{web graphs}, as shown in Figure \ref{fig:hybrid--all}, where it significantly outperforms \FroLou{} for smaller batch updates. Note that \FroLPA{} has about the same performance, but obtains communities of lower quality.
-
-
-\subsubsection{Scalability}
-\label{sec:evaluation--hybridss}
-
-Finally, we study the strong-scaling behavior of \FroHyb{} (Algorithm \ref{alg:hybrid}), and compare it with \FroLou{} and \FroLPA{} (Algorithms \ref{alg:louvain} and \ref{alg:rak}). To do this, we fix the batch size at $10^{-3} |E|$, vary the number of threads in use from $1$ to $64$, and measure the speedup of each algorithm to its sequential version. Figure \ref{fig:hybridss} demonstrates scalability of dynamic algorithms with varying thread count, measured as the time taken by the algorithm compared to the same algorithm running on one thread. Again, as indicated in Section \ref{sec:batch-update}, we employ five distinct random batch updates for each batch size to minimize measurement noise.
-
-As shown in Figure \ref{fig:hybridss--am}, \FroLou{}, \FroLPA{}, and \FroHyb{} obtain a speedup of $5.2\times$, $8.7\times$, and $9.6\times$ respectively at $64$ threads; with their speedup increasing at a mean rate of $1.31\times$, $1.44\times$, and $1.46\times$ respectively for every doubling of threads. Also note from Figure \ref{fig:hybridss--all} that \FroHyb{} offers good speedup on \textit{web graphs} and \textit{social networks}, but does not scale well on \textit{road networks} and \textit{k-mer protein graphs} (which have a low $|E|/|V|$ ratio).
-
-
-
-
-%% - https://www.reddit.com/r/intel/comments/l1kut0/what_are_some_of_the_cons_of_hyperthreading/
+The results, depicted in Figure \ref{fig:strong-scaling}, indicate that with $16$ threads, DF Louvain achieves an average speedup of $6.6\times$ compared to single-threaded execution, showing a performance increase of $1.6\times$ for every doubling of threads. The speedup of DF Louvain is lower, likely due to the reduced work performed by the algorithm. At $32$ and $64$ threads, DF Louvain is affected by NUMA effects (the $64$-core processor used has $4$ NUMA domains), resulting in a speedup of only $6.9\times$ and $6.5\times$, respectively. The results are similar on real-world dynamic graphs\ignore{, as shown in Figure X}, but the speedup is even lower for $64$ threads to due lack of sufficient work per thread.

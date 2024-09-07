@@ -1,101 +1,60 @@
 \begin{algorithm}[hbtp]
-\caption{\textit{Dynamic $\Delta$-screening} community detection approach.}
-\label{alg:dynamic-delta-screening}
-\begin{algorithmic}
+\caption{Our Parallel \textit{Delta-screening (DS)} Louvain.}
+\label{alg:delta}
+\begin{algorithmic}[1]
+\Require{$G^{t-1}, G^t$: Previous, current input graph}
+\Require{$\Delta^{t-}, \Delta^{t+}$: Edge deletions and insertions (batch update)}
+\Require{$C^{t-1}, C^t$: Previous, current community of each vertex}
+\Require{$K^{t-1}, K^t$: Previous, current weighted-degree of vertices}
+\Require{$\Sigma^{t-1}, \Sigma^t$: Previous, current total edge weight of communities}
 \Ensure{$\delta V, \delta E, \delta C$: Is vertex, neighbors, or community affected?}
-\Ensure{$H$: Hashtable that maps a community to associated weight}
-\Ensure{$communities$: Community detection algorithm to use.}
-
-\Statex
-
-\Function{dynamicDeltaScreening}{$G^{t-1}, C^{t-1}, \Delta^{t-}, \Delta^{t+}$}
-  \State $G^t \gets G^{t-1} \setminus \Delta^{t-} \cup \Delta^{t+}$
-  \State $\delta V \gets deltaScreeningAffected(G^{t-1}, C^{t-1}, \Delta^{t-}, \Delta^{t+})$
-  \Function{isAffected}{$i$}
-    \Return{$\delta V[i]$}
-  \EndFunction
-\Return{$communities(G^t, C^{t-1}, isAffected)$}
-\EndFunction
-
-\Statex
-
-\Function{deltaScreeningAffected}{$G^{t-1}, C^{t-1}, \Delta^{t-}, \Delta^{t+}$}
-  \State $H, \delta V, \delta E, \delta C \gets \{\}$
-  \ForAll{$[i, j] \in \Delta^{t-}$}
-    \If{$C^{t-1}[i] = C^{t-1}[j]$}
-      \State $\delta V[i], \delta E[i], \delta C[C^{t-1}[j]] \gets true$
-    \EndIf
-  \EndFor
-  \ForAll{$i \in uniqueFrom(\Delta^{t+})$}
-    \State $H \gets \{\}$
-    \ForAll{$[j, w] \in withFrom(\Delta^{t+}, i)$}
-      \If{$C^{t-1}[i] \neq C^{t-1}[j]$}
-        \State $H[C^{t-1}[j]] \gets H[C^{t-1}[j]] + w$
-      \EndIf
-    \EndFor
-    \State $[c_{top}, w_{top}] \gets chooseCommunity(H)$
-    \State $\delta V[i], \delta E[i], \delta C[c_{top}] \gets true$
-  \EndFor
-  \ForAll{$i \in G^{t-1}.vertices()$}
-    \If{$\delta E[i]$}
-      \ForAll{$j \in G^{t-1}.neighbors(i)$}
-        \State $\delta V[j] \gets true$
-      \EndFor
-    \EndIf
-    \If{$\delta C[C^{t-1}[i]]$}
-      \State $\delta V[i] \gets true$
-    \EndIf
-  \EndFor
-  \Return{$\delta V$}
-\EndFunction
-\end{algorithmic}
-\end{algorithm}
-
-
-
-
-
-\ignore{
-\begin{algorithm}[hbtp]
-\caption{Parallel \textit{$\Delta$-screening} approach.}
-\label{alg:deltascreening}
-\begin{algorithmic}
-\Ensure{$\delta E, \delta C$: Are neighbors, or community affected?}
 \Ensure{$H$: Hashtable mapping a community to associated weight}
+\Ensure{$isAffected(i)$: Is vertex $i$ is marked as affected?}
+\Ensure{$inAffectedRange(i)$: Can $i$ be incrementally marked?}
+\Ensure{$F$: Lambda functions passed to parallel Louvain (Alg. \ref{alg:louvain})}
 
 \Statex
 
-\Function{P-DS}{$G^t, \Delta^{t-}, \Delta^{t+}, C^{t-1}$}
-  \State $H, \delta E, \delta C \gets \{\}$
-  \ForAll{$[i, j] \in \Delta^{t-}$ \textbf{in parallel}}
+\Function{deltaScreening}{$G^{t-1}, G^t, \Delta^{t-}, \Delta^{t+}, C^{t-1}, K^{t-1}, \Sigma^{t-1}$}
+  \State $H, \delta V, \delta E, \delta C \gets \{\}$ \label{alg:delta--init}
+  \State $\rhd$ Mark affected vertices
+  \ForAll{$(i, j, w) \in \Delta^{t-}$ \textbf{in parallel}} \label{alg:delta--loopdel-begin}
     \If{$C^{t-1}[i] = C^{t-1}[j]$}
-      \State $\delta E[i], \delta C[C^{t-1}[j]] \gets true$
-      \State Mark $i$ as affected
+      \State $\delta V[i], \delta E[i], \delta C[C^{t-1}[j]] \gets 1$ \label{alg:delta--loopdelmark}
     \EndIf
-  \EndFor
-  \ForAll{unique source vertex $i \in \Delta^{t+}$ \textbf{in parallel}}
+  \EndFor \label{alg:delta--loopdel-end}
+  \ForAll{unique source vertex $i \in \Delta^{t+}$ \textbf{in parallel}} \label{alg:delta--loopins-begin}
     \State $H \gets \{\}$
-    \ForAll{$(i', j, w) \in \Delta^{t+}\ |\ i' = i$}
+    \ForAll{$(i', j, w) \in \Delta^{t+}\ |\ i' = i$} \label{alg:delta--loopinssrc-begin}
       \If{$C^{t-1}[i] \neq C^{t-1}[j]$}
         \State $H[C^{t-1}[j]] \gets H[C^{t-1}[j]] + w$
       \EndIf
-    \EndFor
-    \State $[c^*, w^*] \gets chooseCommunity(H)$
-    \State $\delta E[i], \delta C[c^*] \gets true$
-    \State Mark $i$ as affected
-  \EndFor
-  \ForAll{$i \in V^t$ \textbf{in parallel}}
-    \If{$\delta E[i]$}
+    \EndFor \label{alg:delta--loopinssrc-end}
+    \State $c^* \gets$ Best community linked to $i$ in $H$ \label{alg:delta--loopinschoose}
+    \State $\delta V[i], \delta E[i], \delta C[c^*] \gets 1$ \label{alg:delta--loopinsmark}
+  \EndFor \label{alg:delta--loopins-end}
+  \ForAll{$i \in V^t$ \textbf{in parallel}} \label{alg:delta--loopaff-begin}
+    \If{$\delta E[i]$} \label{alg:delta--loopaffnei-begin}
       \ForAll{$j \in G^t.neighbors(i)$}
-        \State Mark $i$ as affected
+        \State $\delta V[j] \gets 1$
       \EndFor
-    \EndIf
-    \If{$\delta C[C^{t-1}[i]]$}
-      \State Mark $i$ as affected
-    \EndIf
-  \EndFor
+    \EndIf \label{alg:delta--loopaffnei-end}
+    \If{$\delta C[C^{t-1}[i]]$} \label{alg:delta--loopaffcom-begin}
+      \State $\delta V[i] \gets 1$
+    \EndIf \label{alg:delta--loopaffcom-end}
+  \EndFor \label{alg:delta--loopaff-end}
+  \Function{isAffected}{$i$} \label{alg:delta--isaff-begin}
+    \Return{$\delta V[i]$}
+  \EndFunction \label{alg:delta--isaff-end}
+  \Function{inAffectedRange}{$i$} \label{alg:delta--isaffrng-begin}
+    \Return{$\delta V[i]$}
+  \EndFunction \label{alg:delta--isaffrng-end}
+  \State $F \gets \{isAffected, inAffectedRange\}$ \label{alg:delta--lambdas}
+  \State $\rhd$ Use $K^{t-1}$, $\Sigma^{t-1}$ as auxiliary information (Alg. \ref{alg:update})
+  \State $\{K^t, \Sigma^t\} \gets updateWeights(G^t, \Delta^{t-}, \Delta^{t+}, C^{t-1}, K^{t-1}, \Sigma^{t-1})$\label{alg:delta--auxiliary}
+  \State $\rhd$ Obtain updated communities (Alg. \ref{alg:louvain})
+  \State $C^t \gets louvain(G^t, C^{t-1}, K^t, \Sigma^t, F)$ \label{alg:delta--louvain}
+  \Return{$\{C^t, K^t, \Sigma^t\}$} \label{alg:delta--return}
 \EndFunction
 \end{algorithmic}
 \end{algorithm}
-
-}

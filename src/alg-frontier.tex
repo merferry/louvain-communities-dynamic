@@ -1,104 +1,46 @@
 \begin{algorithm}[hbtp]
-\caption{\textit{Dynamic Frontier} community detection approach.}
+\caption{Our Parallel \textit{Dynamic Frontier (DF)} Louvain.}
 \label{alg:frontier}
 \begin{algorithmic}[1]
-\Ensure{$\delta V[i]$: Is vertex $i$ affected due to current batch update?}
-\Ensure{$communities$: Community detection algorithm to use.}
+\Require{$G^{t-1}, G^t$: Previous, current input graph}
+\Require{$\Delta^{t-}, \Delta^{t+}$: Edge deletions and insertions (batch update)}
+\Require{$C^{t-1}, C^t$: Previous, current community of each vertex}
+\Require{$K^{t-1}, K^t$: Previous, current weighted-degree of vertices}
+\Require{$\Sigma^{t-1}, \Sigma^t$: Previous, current total edge weight of communities}
+\Ensure{$\delta V$: Flag vector indicating if each vertex is affected}
+\Ensure{$isAffected(i)$: Is vertex $i$ is marked as affected?}
+\Ensure{$inAffectedRange(i)$: Can $i$ be incrementally marked?}
+\Ensure{$onChange(i)$: What happens if $i$ changes its community?}
+\Ensure{$F$: Lambda functions passed to parallel Louvain (Alg. \ref{alg:louvain})}
 
 \Statex
 
-\Function{dynamicFrontier}{$G^{t-1}, C^{t-1}, \Delta^{t-}, \Delta^{t+}$}
-  \State $G^t \gets (G^{t-1} \setminus \Delta^{t-}) \cup \Delta^{t+}$
-  \ForAll{$i \in V^{t-1} \cup V^t$} $\delta V[i] \gets 0$
-  \EndFor
-  \State $\rhd$ Mark initial affected vertices \label{alg:frontier--mark-begin}
-  \ForAll{$(i, j) \in \Delta^{t-}$ \textbf{in parallel}}
+\Function{dynamicFrontier}{$G^{t-1}, G^t, \Delta^{t-}, \Delta^{t+}, C^{t-1}, K^{t-1}, \Sigma^{t-1}$}
+  \State $\rhd$ Mark initial affected vertices
+  \ForAll{$(i, j) \in \Delta^{t-}$ \textbf{in parallel}} \label{alg:frontier--loopdel-begin}
     \If{$C^{t-1}[i] = C^{t-1}[j]$} $\delta V[i] \gets 1$
     \EndIf
-  \EndFor
-  \ForAll{$(i, j, w) \in \Delta^{t+}$ \textbf{in parallel}}
+  \EndFor \label{alg:frontier--loopdel-end}
+  \ForAll{$(i, j, w) \in \Delta^{t+}$ \textbf{in parallel}} \label{alg:frontier--loopins-begin}
     \If{$C^{t-1}[i] \neq C^{t-1}[j]$} $\delta V[i] \gets 1$
     \EndIf
-  \EndFor \label{alg:frontier--mark-end}
-  % \State \BeginHighlight{} $\rhd$ Called to check if a given vertex is affected \label{alg:frontier--affected-begin}
-  \Function{isAffected}{$i$}
+  \EndFor \label{alg:frontier--loopins-end}
+  \Function{isAffected}{$i$} \label{alg:frontier--isaff-begin}
     \Return{$\delta V[i]$}
-  \EndFunction \label{alg:frontier--affected-end}
-  % \EndHighlight{blue}{0.95}
-  % \State \BeginHighlight{} $\rhd$ Called when a vertex changes its community \label{alg:frontier--remark-begin}
-  \Function{onChange}{$i$}
-    \ForAll{$j \in G^t.out(i)$} $\delta V[j] \gets 1$ \Comment{Expand affected}
+  \EndFunction \label{alg:frontier--isaff-end}
+  \Function{inAffectedRange}{$i$} \label{alg:frontier--isaffrng-begin}
+    \Return{$1$}
+  \EndFunction \label{alg:frontier--isaffrng-end}
+  \Function{onChange}{$i$} \label{alg:frontier--onchg-begin}
+    \ForAll{$j \in G^t.neighbors(i)$} $\delta V[j] \gets 1$
     \EndFor
-  \EndFunction \label{alg:frontier--remark-end}
-  % \EndHighlight{red}{0.95}
-  \State $\rhd$ Find with $louvain()$, $lpa()$, or $hybridLouvainLpa()$ \label{alg:frontier--communities-begin}
-  \Return{$communities(G^t, C^{t-1}, \{isAffected, onChange\})$} \label{alg:frontier--communities-end}
+  \EndFunction \label{alg:frontier--onchg-end}
+  \State $F \gets \{isAffected, inAffectedRange, onChange\}$ \label{alg:frontier--lambdas}
+  \State $\rhd$ Use $K^{t-1}$, $\Sigma^{t-1}$ as auxiliary information (Alg. \ref{alg:update})
+  \State $\{K^t, \Sigma^t\} \gets updateWeights(G^t, \Delta^{t-}, \Delta^{t+}, C^{t-1}, K^{t-1}, \Sigma^{t-1})$\label{alg:frontier--auxiliary}
+  \State $\rhd$ Obtain updated communities (Alg. \ref{alg:louvain})
+  \State $C^t \gets louvain(G^t, C^{t-1}, K^t, \Sigma^t, F)$ \label{alg:frontier--louvain}
+  \Return{$\{C^t, K^t, \Sigma^t\}$} \label{alg:frontier--return}
 \EndFunction
 \end{algorithmic}
 \end{algorithm}
-
-
-
-
-%% Parameter setting
-% $\tau \gets TOLERANCE\_INITIAL$
-% TOLERANCE\_INITIAL = 0.01
-% TOLERANCE\_DECLINE = 10
-% MAX\_PASSES = 500
-
-
-
-
-
-
-\ignore{
-\begin{algorithm}[hbtp]
-\caption{\textit{Dynamic Frontier} approach (\Fro{}).}
-\label{alg:frontier}
-\begin{algorithmic}[1]
-
-\Statex
-
-\State $\rhd$ {\bf Step 1}: Initial marking of affected vertices
-\Function{\Fro{}-initial}{$G^t, \Delta^{t-}, \Delta^{t+}, C^{t-1}$} \label{alg:frontier--main-begin}
-  \ForAll{$(i, j) \in \Delta^{t-}$ \textbf{in parallel}} \label{alg:frontier--mark-begin}
-    \State Mark $i$ as affected \textbf{if} $C^{t-1}[i] = C^{t-1}[j]$
-  \EndFor
-  \ForAll{$(i, j, w) \in \Delta^{t+}$ \textbf{in parallel}}
-    \State Mark $i$ as affected \textbf{if} $C^{t-1}[i] \neq C^{t-1}[j]$
-  \EndFor \label{alg:frontier--mark-end}
-\EndFunction
-
-\Statex
-  
-\State $\rhd$ {\bf Step 2}: Incremental marking of affected vertices
-\Function{\Fro{}-incremental}{$G^t$}
-  \While{iterations are not complete}
-    \ForAll{$i \in V^t$}
-      \If{$i$ is not affected} \textbf{continue}
-      \EndIf
-      \State Mark $i$ as not affected (prune) \label{alg:frontier--prune}
-      \State Pick best community for $i$
-      \If{community of $i$ changes}
-        \State Mark neighbors of $i$ as affected \label{alg:frontier--remark}
-      \EndIf
-    \EndFor
-    \State \textbf{repeat until} communities have converged
-  \EndWhile
-\EndFunction \label{alg:frontier--main-end}
-
-\Statex
-
-\State $\rhd$ {\bf Step 3}: Algorithm-specific post-processing (optional)
-\end{algorithmic}
-\end{algorithm}
-
-
-
-
-%% Parameter setting
-% TOLERANCE = 0.05
-% MAX\_ITERATIONS = 20
-% MAX\_THREADS = 12
-
-}
